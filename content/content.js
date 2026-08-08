@@ -110,22 +110,6 @@
     }
   }
 
-  function getCurrentTranslationLang(player) {
-    if (!player) return null;
-    try {
-      if (typeof player.getOption === 'function') {
-        const track = player.getOption('captions', 'track');
-        if (track) {
-          if (track.translationLanguage) return track.translationLanguage.languageCode || track.translationLanguage;
-          if (track.translationLang) return track.translationLang.languageCode || track.translationLang;
-        }
-        const tl = player.getOption('captions', 'translationLanguage');
-        if (tl) return tl.languageCode || tl;
-      }
-    } catch (_) {}
-    return null;
-  }
-
   function isTargetLang(current) {
     if (!current) return false;
     const target = settings[K.TARGET_LANG];
@@ -248,12 +232,14 @@
 
   // Click a menu item matching labelRe, then wait until the next submenu
   // (a new .ytp-panel-menu) actually appears before resolving. Falls back
-  // to a settle delay if no deeper panel is expected.
+  // to a settle delay if no deeper panel is expected. Re-reads the item right
+  // before clicking to avoid a stale element after a menu re-render.
   async function clickMenuItemAndWait(labelRe, timeout = 3000) {
     const prevPanels = countPanels();
     const ok = await waitFor(() => !!findMenuItem(labelRe), { timeout });
     if (!ok) return false;
     const item = findMenuItem(labelRe);
+    if (!item) return false;
     fireRealClick(item);
     // Wait for a deeper panel to render (submenu opened) OR just settle.
     await waitFor(() => countPanels() > prevPanels, { timeout: 2500 });
@@ -261,12 +247,16 @@
   }
 
   // Click a menu item matching labelRe inside the current language list, then
-  // wait until captions reflect the target (or the menu settles).
+  // wait until captions reflect the target (or the menu settles). Re-reads the
+  // item immediately before clicking to avoid a stale element.
   async function clickLangItemAndWait(labelRe, timeout = 3000) {
     const ok = await waitFor(() => !!findMenuItem(labelRe), { timeout });
     if (!ok) return false;
     const item = findMenuItem(labelRe);
+    if (!item) return false;
     fireRealClick(item);
+    // Give the language selection a moment to apply.
+    await sleep(500);
     return true;
   }
 
@@ -316,19 +306,24 @@
         await openCcPanel();
         let panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
         const target = /(English \(auto-generated\)|英语（自动生成）|英语 ?\(auto-generated\)|English)/i;
+        let clickedEn = false;
         for (const el of panelItems) {
           if (target.test(menuItemText(el))) {
             fireRealClick(el);
-            closeSettingsMenu();
-            return true;
+            clickedEn = true;
+            break;
           }
+        }
+        if (clickedEn) {
+          closeSettingsMenu();
+          return true;
         }
         // Fallback through settings gear.
         if (!await openSettingsMenu()) return false;
-        await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)/i);
-        await clickMenuItemAndWait(/^(English \(auto-generated\)|英语（自动生成）|English)/i);
+        const okGear = await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)/i) &&
+          await clickMenuItemAndWait(/^(English \(auto-generated\)|英语（自动生成）|English)/i);
         closeSettingsMenu();
-        return true;
+        return okGear;
       }
 
       // Auto-translate path.
@@ -353,7 +348,12 @@
       // Now we are in the language list; click the target language and wait
       // for the menu to settle (panel count may stay the same, so use a short
       // wait instead of relying on a deeper panel).
-      await clickLangItemAndWait(labelRe, 3000);
+      const clicked = await clickLangItemAndWait(labelRe, 4000);
+      if (!clicked) {
+        // Target language not found in the list; bail so we can retry.
+        closeSettingsMenu();
+        return false;
+      }
       await sleep(400);
       closeSettingsMenu();
       return true;
@@ -375,6 +375,38 @@
     return null;
   }
 
+  // Detect whether captions/translation really took effect by inspecting the
+  // live caption text OR the player's caption track option. Used to gate the
+  // "applied" lock so a fake success never stops the retry loop.
+  function verifyApplied(player) {
+    // Best signal: actual visible caption text rendered on screen.
+    const segs = document.querySelectorAll('.ytp-caption-segment');
+    if (segs.length) {
+      // Captions are visibly on. For translate mode we trust the UI path that
+      // explicitly clicked the target language; for auto-generated the caption
+      // presence is enough.
+      return true;
+    }
+    // Fallback: ask the player what track is active.
+    try {
+      if (typeof player.getOption === 'function') {
+        const track = player.getOption('captions', 'track');
+        if (track && (track.languageCode || track.langCode || track.displayName)) {
+          if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
+            // English (auto-generated) shows on screen; treat any ASR/en as fine.
+            return (track.kind === 'asr') ||
+              String(track.languageCode || track.langCode || '').toLowerCase().startsWith('en');
+          }
+          // Translate mode: the active track should carry a translation target.
+          const tl = track.translationLanguage || track.translationLang;
+          if (tl) return isTargetLang(tl.languageCode || tl);
+          // No translation info but original track present: not enough proof.
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
   async function applyOnce() {
     if (applied || !isEnabled()) return;
 
@@ -384,29 +416,20 @@
       return;
     }
 
-    let ok = false;
-    try {
-      ok = applyApi(player);
-    } catch (e) {
-      ok = false;
-    }
+    // API is only a lightweight pre-trigger now: try to flip the switch, but
+    // its result is NEVER used to decide success. YouTube's internal state is
+    // unreliable through this path, so we always follow with the UI click
+    // path which drives the real player UI.
+    try { applyApi(player); } catch (_) {}
 
-    if (!ok) {
-      // API route failed; use the UI fallback.
-      ok = await applyUiFallback();
-    } else if (settings[K.CAPTION_MODE] !== MODE.AUTO_GENERATED) {
-      // The API reported success, but we must verify translation actually took effect.
-      await sleep(700);
-      const current = getCurrentTranslationLang(player);
-      if (!isTargetLang(current)) {
-        console.log('[SubtitleMate] API did not translate to target, using UI fallback. current=', current);
-        ok = await applyUiFallback();
-      }
-    }
+    const ok = await applyUiFallback();
 
-    if (ok) {
+    if (ok && verifyApplied(player)) {
       applied = true;
       console.log('[SubtitleMate] captions + translation applied');
+    } else if (ok) {
+      // UI path reported success but verification failed — keep retrying.
+      console.log('[SubtitleMate] UI path done but caption not confirmed, will retry');
     }
   }
 
