@@ -112,23 +112,27 @@ body {
   cursor: pointer;
 }
 
-.apply-btn {
-  width: 100%;
-  padding: 11px 14px;
-  margin-bottom: 14px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--primary);
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.05s ease;
-}
-.apply-btn:hover { background: var(--accent); }
-.apply-btn:active { transform: translateY(1px); }
-
 .checks { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+
+/* Footer "Apply" entry: a small text button with an icon, not a full-width block. */
+.apply-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.apply-link:hover { background: var(--border); }
+.apply-link:active { transform: translateY(1px); }
+.apply-link.loading { color: var(--secondary); cursor: default; }
+.apply-icon { flex: 0 0 auto; }
 .check {
   display: flex;
   align-items: center;
@@ -142,12 +146,12 @@ body {
 .footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--border);
 }
-.saved { font-size: 12px; color: var(--primary); opacity: 0; transition: opacity 0.2s; }
+.saved { font-size: 12px; color: var(--primary); opacity: 0; transition: opacity 0.2s; flex: 1 1 auto; min-width: 0; }
 .saved.show { opacity: 1; }
 .lang-switch {
   font-size: 12px;
@@ -157,5 +161,6 @@ body {
   border-radius: 8px;
   padding: 5px 10px;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 .lang-switch:hover { color: var(--primary); }

@@ -231,18 +231,26 @@
   }
 
   // Click a menu item matching labelRe, then wait until the next submenu
-  // (a new .ytp-panel-menu) actually appears before resolving. Falls back
-  // to a settle delay if no deeper panel is expected. Re-reads the item right
-  // before clicking to avoid a stale element after a menu re-render.
+  // (a new .ytp-panel-menu) appears OR the menu has simply settled. Some
+  // YouTube menus replace the current panel instead of adding a deeper one,
+  // so we must not fail solely because panel count did not increase.
+  // Re-reads the item right before clicking to avoid a stale element after a
+  // menu re-render.
   async function clickMenuItemAndWait(labelRe, timeout = 3000) {
-    const prevPanels = countPanels();
     const ok = await waitFor(() => !!findMenuItem(labelRe), { timeout });
     if (!ok) return false;
     const item = findMenuItem(labelRe);
     if (!item) return false;
     fireRealClick(item);
-    // Wait for a deeper panel to render (submenu opened) OR just settle.
-    await waitFor(() => countPanels() > prevPanels, { timeout: 2500 });
+    // Resolve when either a deeper panel appears (submenu opened) or the menu
+    // has settled after a short wait. We do NOT require an extra panel because
+    // YouTube sometimes swaps the panel content in place.
+    const settled = await waitFor(() => countPanels() >= 1, { timeout: 2500 });
+    if (!settled) {
+      // Even if we can't observe a panel, give it a brief settle so the next
+      // step finds the freshly rendered menu.
+      await sleep(400);
+    }
     return true;
   }
 
@@ -429,11 +437,15 @@
   }
 
   async function applyOnce() {
-    if (applied || !isEnabled()) return;
+    if (applied) return;
+    if (!isEnabled()) {
+      console.log('[SubtitleMate] applyOnce skipped: disabled (autoCaptions/onYt)');
+      return;
+    }
 
     const player = await waitForPlayer(12000);
     if (!player) {
-      // Keep trying via observer/SPA events.
+      console.log('[SubtitleMate] applyOnce: player not found yet, will retry via observer');
       return;
     }
 
@@ -444,6 +456,7 @@
     try { applyApi(player); } catch (_) {}
 
     const ok = await applyUiFallback();
+    console.log('[SubtitleMate] applyUiFallback returned =', ok);
 
     if (ok && verifyApplied(player)) {
       applied = true;
@@ -451,6 +464,8 @@
     } else if (ok) {
       // UI path reported success but verification failed — keep retrying.
       console.log('[SubtitleMate] UI path done but caption not confirmed, will retry');
+    } else {
+      console.log('[SubtitleMate] UI path did not complete, will retry');
     }
   }
 
@@ -476,6 +491,11 @@
     } else if (msg && msg.type === 'SM_APPLY_SUBTITLES') {
       // Manual "Apply to current video" trigger from the popup.
       console.log('[SubtitleMate] manual apply requested');
+      // Ensure settings are loaded before running — init() is async and the
+      // message may arrive before settings are ready, which would make
+      // isEnabled() return false and silently abort.
+      if (!settings) await loadSettings();
+      console.log('[SubtitleMate] settings loaded, enabled =', isEnabled());
       reset();
       runWithRetries();
     }
