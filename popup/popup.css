@@ -112,6 +112,22 @@ body {
   cursor: pointer;
 }
 
+.apply-btn {
+  width: 100%;
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.05s ease;
+}
+.apply-btn:hover { background: var(--accent); }
+.apply-btn:active { transform: translateY(1px); }
+
 .checks { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .check {
   display: flex;

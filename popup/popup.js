@@ -43,6 +43,8 @@
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblRemember').textContent = i18n.remember;
     $('lblAutoYt').textContent = i18n.autoOnYt;
+    $('btnApply').textContent = i18n.applySettings;
+    $('btnApply').title = i18n.applySettings;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
     const toggle = $('toggleAuto');
@@ -95,6 +97,18 @@
       uiLang = uiLang === 'en' ? 'zh' : 'en';
       setCurrentUiLang(uiLang);
       applyUI();
+    });
+
+    $('btnApply').addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tab = tabs && tabs[0];
+        if (!tab || !tab.id) return;
+        chrome.tabs.sendMessage(tab.id, { type: 'SM_APPLY_SUBTITLES' }).catch(() => {});
+      });
+      const hint = $('savedHint');
+      hint.textContent = t('applyTriggered');
+      hint.classList.add('show');
+      setTimeout(() => hint.classList.remove('show'), 1400);
     });
   }
 

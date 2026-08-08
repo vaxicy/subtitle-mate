@@ -286,7 +286,7 @@
     // Use a partial match (not anchored fully) so YouTube's trailing
     // annotations like "(auto-generated)" after a language name still match.
     if (lang === 'zh-CN' || lang === 'zh-Hans' || lang.startsWith('zh')) {
-      return /(中文（简体）|中文 \(简体\)|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)/i;
+      return /(中文（简体）|中文 \(简体\)|简体中文|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)/i;
     }
     // For other langs, allow the base code plus optional suffixes.
     const base = lang.split('-')[0];
@@ -298,6 +298,7 @@
 
     // Step 1: make sure captions are on.
     const ccOn = await ensureCaptionsOn();
+    console.log('[SubtitleMate] step: captions on =', ccOn);
     if (!ccOn) return false;
 
     try {
@@ -315,13 +316,15 @@
           }
         }
         if (clickedEn) {
+          console.log('[SubtitleMate] step: clicked English (auto-generated)');
           closeSettingsMenu();
           return true;
         }
         // Fallback through settings gear.
         if (!await openSettingsMenu()) return false;
-        const okGear = await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)/i) &&
+        const okGear = await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC|CC\/字幕)/i) &&
           await clickMenuItemAndWait(/^(English \(auto-generated\)|英语（自动生成）|English)/i);
+        console.log('[SubtitleMate] step: auto-generated via gear =', okGear);
         closeSettingsMenu();
         return okGear;
       }
@@ -329,12 +332,14 @@
       // Auto-translate path.
       const target = settings[K.TARGET_LANG];
       const labelRe = langLabelRe(target);
+      console.log('[SubtitleMate] step: translate target =', target);
 
       // Try the direct CC panel first (some players expose the language list here).
       await openCcPanel();
       let panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
       for (const el of panelItems) {
         if (labelRe.test(menuItemText(el))) {
+          console.log('[SubtitleMate] step: clicked target in CC panel');
           fireRealClick(el);
           closeSettingsMenu();
           return true;
@@ -343,12 +348,15 @@
 
       // Main path: settings gear -> Subtitles/CC -> Auto-translate -> target.
       if (!await openSettingsMenu()) return false;
-      await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)/i);
-      await clickMenuItemAndWait(/^(Auto-translate|自动翻译|Translate|翻译)/i);
+      const okCC = await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC|CC\/字幕)/i);
+      console.log('[SubtitleMate] step: opened Subtitles/CC =', okCC);
+      const okAt = await clickMenuItemAndWait(/^(Auto-translate|自动翻译|自动翻译字幕|Auto-translate subtitles|Translate|翻译)/i);
+      console.log('[SubtitleMate] step: opened Auto-translate =', okAt);
       // Now we are in the language list; click the target language and wait
       // for the menu to settle (panel count may stay the same, so use a short
       // wait instead of relying on a deeper panel).
       const clicked = await clickLangItemAndWait(labelRe, 4000);
+      console.log('[SubtitleMate] step: clicked target language =', clicked);
       if (!clicked) {
         // Target language not found in the list; bail so we can retry.
         closeSettingsMenu();
@@ -358,6 +366,7 @@
       closeSettingsMenu();
       return true;
     } catch (e) {
+      console.log('[SubtitleMate] step: exception', e && e.message);
       closeSettingsMenu();
       return false;
     }
@@ -379,31 +388,43 @@
   // live caption text OR the player's caption track option. Used to gate the
   // "applied" lock so a fake success never stops the retry loop.
   function verifyApplied(player) {
-    // Best signal: actual visible caption text rendered on screen.
-    const segs = document.querySelectorAll('.ytp-caption-segment');
-    if (segs.length) {
-      // Captions are visibly on. For translate mode we trust the UI path that
-      // explicitly clicked the target language; for auto-generated the caption
-      // presence is enough.
-      return true;
+    // Auto-generated mode: visible caption text is sufficient proof.
+    if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
+      const segs = document.querySelectorAll('.ytp-caption-segment');
+      if (segs.length) return true;
+      try {
+        if (typeof player.getOption === 'function') {
+          const track = player.getOption('captions', 'track');
+          if (track && (track.kind === 'asr' ||
+              String(track.languageCode || track.langCode || '').toLowerCase().startsWith('en'))) {
+            return true;
+          }
+        }
+      } catch (_) {}
+      return false;
     }
-    // Fallback: ask the player what track is active.
+
+    // Translate mode: captions must be visible AND actively translated into the
+    // target language. Visible English segments alone are NOT enough — that just
+    // means the original English track is showing. If we can read the player
+    // track, confirm a translation target is set; otherwise fall back to "keep
+    // retrying" so we never lock in a false success.
     try {
       if (typeof player.getOption === 'function') {
         const track = player.getOption('captions', 'track');
-        if (track && (track.languageCode || track.langCode || track.displayName)) {
-          if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
-            // English (auto-generated) shows on screen; treat any ASR/en as fine.
-            return (track.kind === 'asr') ||
-              String(track.languageCode || track.langCode || '').toLowerCase().startsWith('en');
-          }
-          // Translate mode: the active track should carry a translation target.
+        if (track) {
           const tl = track.translationLanguage || track.translationLang;
-          if (tl) return isTargetLang(tl.languageCode || tl);
-          // No translation info but original track present: not enough proof.
+          if (tl && isTargetLang(tl.languageCode || tl)) {
+            return document.querySelectorAll('.ytp-caption-segment').length > 0;
+          }
         }
       }
     } catch (_) {}
+
+    // We cannot confirm translation is active (no player signal). Do NOT lock
+    // success — let the retry loop keep trying. This prevents the previous bug
+    // where English captions were mistaken for a finished translation.
+    console.log('[SubtitleMate] verify: captions present but translation not confirmed, will retry');
     return false;
   }
 
@@ -450,6 +471,11 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'SM_SETTINGS_CHANGED') {
       settings = msg.settings;
+      reset();
+      runWithRetries();
+    } else if (msg && msg.type === 'SM_APPLY_SUBTITLES') {
+      // Manual "Apply to current video" trigger from the popup.
+      console.log('[SubtitleMate] manual apply requested');
       reset();
       runWithRetries();
     }
