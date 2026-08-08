@@ -106,6 +106,24 @@
     return false;
   }
 
+  // Click the CC button and detect whether a language panel popped up.
+  // Returns 'pressed' if we turned captions on, 'panel' if a language list appeared, false otherwise.
+  function clickCcAndDetectPanel() {
+    const btn = document.querySelector('.ytp-subtitles-button');
+    if (!btn) return false;
+    // If a language panel (the new popout list) is already visible, treat as panel.
+    const panel = document.querySelector('.ytp-panel-menu, .ytp-popup .ytp-panel-menu, .ytp-sb-slot, .ytp-caption-window-container');
+    if (panel && panel.offsetParent && /中文|Chinese/.test(panel.textContent)) return 'panel';
+
+    const pressed = btn.getAttribute('aria-pressed') === 'true';
+    if (!pressed) {
+      btn.click();
+      // Give YouTube a moment to render the language menu.
+      return 'clicked';
+    }
+    return 'already';
+  }
+
   function openSettingsMenu() {
     const btn = document.querySelector('.ytp-settings-button');
     if (!btn) return false;
@@ -149,22 +167,38 @@
     if (!isEnabled()) return false;
     const target = settings[K.TARGET_LANG];
     const targetLabel = target === 'zh-CN' || target === 'zh-Hans' || target.startsWith('zh')
-      ? /^(中文（简体）|中文 \(简体\)|中文|Chinese \(Simplified\)|Chinese)$/
+      ? /^(中文（简体）|中文 \(简体\)|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)$/i
       : new RegExp('^' + target.replace(/[-]/g, '[- ]?') + '$', 'i');
 
     try {
-      // 1. Make sure captions are on.
+      // Path B: click the CC button directly; on newer players a language list pops up.
+      const res = clickCcAndDetectPanel();
+      await sleep(400);
+      if (res === 'clicked' || res === 'panel' || res === 'already') {
+        // Look for a standalone language panel (new YouTube UI).
+        const panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
+        let picked = false;
+        for (const el of panelItems) {
+          if (targetLabel.test(el.textContent.trim())) {
+            el.click();
+            picked = true;
+            break;
+          }
+        }
+        if (picked) {
+          closeSettingsMenu();
+          return true;
+        }
+      }
+
+      // Path A: settings gear -> Subtitles/CC -> Auto-translate -> target language.
       clickSubtitlesButton();
       await sleep(300);
-
-      // 2. Open the player settings gear.
       if (!openSettingsMenu()) return false;
       await sleep(350);
-
-      // 3. Navigate: Subtitles/CC -> Auto-translate -> target language.
       await selectMenuPath([
-        /^(Subtitles\/CC|CC|Subtitles|字幕)$/i,
-        /^(Auto-translate|自动翻译|Translate)$/i,
+        /^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i,
+        /^(Auto-translate|自动翻译|Translate|翻译)$/i,
         targetLabel,
       ], 2000);
 
