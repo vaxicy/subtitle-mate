@@ -59,10 +59,35 @@ def make_icon(size):
     return _source_icon.resize((size, size), Image.LANCZOS)
 
 
+def make_toolbar_icon(source, target_size=16, fill_ratio=0.92):
+    """
+    For the 16px toolbar icon, crop to content and scale up so the
+    blue body fills most of the canvas. This keeps it readable in the
+    Chrome extensions toolbar.
+    """
+    alpha = source.split()[-1]
+    bbox = alpha.getbbox()
+    if not bbox:
+        return source.resize((target_size, target_size), Image.LANCZOS)
+    content = source.crop(bbox)
+    cw, ch = content.size
+    scale = (target_size * fill_ratio) / max(cw, ch)
+    new_w = max(1, int(round(cw * scale)))
+    new_h = max(1, int(round(ch * scale)))
+    scaled = content.resize((new_w, new_h), Image.LANCZOS)
+    canvas = Image.new("RGBA", (target_size, target_size), (0, 0, 0, 0))
+    x = (target_size - new_w) // 2
+    y = (target_size - new_h) // 2
+    canvas.paste(scaled, (x, y), scaled)
+    return canvas
+
+
 def gen_icons():
     os.makedirs(ICONS, exist_ok=True)
-    for s in (16, 48, 128):
-        make_icon(s).save(os.path.join(ICONS, f"icon{s}.png"), "PNG")
+    src = Image.open(ICON_SOURCE).convert("RGBA")
+    for s in (128, 48):
+        src.resize((s, s), Image.LANCZOS).save(os.path.join(ICONS, f"icon{s}.png"), "PNG")
+    make_toolbar_icon(src, 16, fill_ratio=0.92).save(os.path.join(ICONS, "icon16.png"), "PNG")
     print("icons generated")
 
 
@@ -86,7 +111,7 @@ def draw_promo(w, h, filepath):
     d.ellipse([int(20*scale), h - int(80*scale), int(70*scale), h - int(30*scale)], fill=(0x6A, 0x72, 0xF3))
 
     # Icon
-    ic_sz = int(56 * scale) if not is_small else int(34 * scale * (1400/440))
+    ic_sz = int(120 * scale) if not is_small else int(64 * scale * (1400/440))
     ic = make_icon(ic_sz)
     img.paste(ic, (int(36*scale), int(36*scale)), ic)
 

@@ -1,14 +1,20 @@
 // SubtitleMate content script.
-// Auto-enables YouTube captions and translates them to the target language
-// without requiring the user to click anything.
+// Auto-enables YouTube captions, either auto-translated into the target
+// language or using "English (auto-generated)" captions, without requiring
+// the user to click anything.
 
 (function () {
   const K = {
     AUTO_CAPTIONS: 'sm_autoCaptions',
-    SOURCE_LANG: 'sm_sourceLang',
+    CAPTION_MODE: 'sm_captionMode',
     TARGET_LANG: 'sm_targetLang',
     REMEMBER_LANG: 'sm_rememberLang',
     AUTO_ON_YT: 'sm_autoOnYt',
+  };
+
+  const MODE = {
+    TRANSLATE: 'translate',
+    AUTO_GENERATED: 'auto-generated',
   };
 
   let settings = null;
@@ -35,7 +41,7 @@
   async function loadSettings() {
     const defs = {
       [K.AUTO_CAPTIONS]: true,
-      [K.SOURCE_LANG]: 'en',
+      [K.CAPTION_MODE]: MODE.TRANSLATE,
       [K.TARGET_LANG]: 'zh-CN',
       [K.REMEMBER_LANG]: true,
       [K.AUTO_ON_YT]: true,
@@ -57,35 +63,46 @@
       (t.kind === 'translation' || t.isTranslation || t.name && String(t.name).toLowerCase().includes('translate'))
     );
     if (translated) return translated;
-    // Otherwise pick the source-language track (or the first one) so we can request translation.
-    const source = tracks.find((t) => t.langCode === settings[K.SOURCE_LANG] || t.languageCode === settings[K.SOURCE_LANG]);
-    return source || tracks[0];
+    // Otherwise pick the first available track so we can request translation.
+    return tracks[0];
   }
 
   function applyApi(player) {
     if (!player || !isEnabled()) return false;
     try {
-      const target = settings[K.TARGET_LANG];
-      const track = findCaptionTrack(player, target);
-
       // Turn captions on.
       if (typeof player.updateSubtitleUserConfig === 'function') {
         player.updateSubtitleUserConfig({ kind: 'PLAYBACK', enable: true });
       }
       if (typeof player.setOption === 'function') {
-        try { player.setOption('captions', 'track', track || {}); } catch (_) {}
-        // Several YouTube player builds accept one of these translation options.
-        const translationOptions = [
-          ['captions', 'translationLanguage', { languageCode: target }],
-          ['captions', 'translationLang', target],
-          ['captions', 'translation_language', target],
-        ];
-        for (const args of translationOptions) {
-          try { player.setOption(...args); } catch (_) {}
+        if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
+          // Pick "English (auto-generated)".
+          try { player.setOption('captions', 'track', { languageCode: 'en', kind: 'asr' }); } catch (_) {}
+          // Stop any active translation.
+          const clearTranslation = [
+            ['captions', 'translationLanguage', {}],
+            ['captions', 'translationLang', null],
+          ];
+          for (const args of clearTranslation) {
+            try { player.setOption(...args); } catch (_) {}
+          }
+        } else {
+          const target = settings[K.TARGET_LANG];
+          const track = findCaptionTrack(player, target);
+          try { player.setOption('captions', 'track', track || {}); } catch (_) {}
+          const translationOptions = [
+            ['captions', 'translationLanguage', { languageCode: target }],
+            ['captions', 'translationLang', target],
+            ['captions', 'translation_language', target],
+          ];
+          for (const args of translationOptions) {
+            try { player.setOption(...args); } catch (_) {}
+          }
         }
       }
-      if (typeof player.updateTranslateLanguage === 'function') {
-        try { player.updateTranslateLanguage(target); } catch (_) {}
+      if (settings[K.CAPTION_MODE] !== MODE.AUTO_GENERATED &&
+          typeof player.updateTranslateLanguage === 'function') {
+        try { player.updateTranslateLanguage(settings[K.TARGET_LANG]); } catch (_) {}
       }
       return true;
     } catch (e) {
@@ -121,33 +138,18 @@
     el.dispatchEvent(new MouseEvent('click', opts));
   }
 
-  function clickSubtitlesButton() {
+  // Run cb after the CC button is guaranteed pressed; returns true if captions
+  // ended up on. We poll until the aria-pressed attribute reflects "true".
+  async function ensureCaptionsOn(maxTries = 5) {
     const btn = document.querySelector('.ytp-subtitles-button');
     if (!btn) return false;
-    const pressed = btn.getAttribute('aria-pressed') === 'true';
-    if (!pressed) {
-      fireRealClick(btn);
-      return true;
+    if (btn.getAttribute('aria-pressed') === 'true') return true;
+    fireRealClick(btn);
+    for (let i = 0; i < maxTries; i++) {
+      await sleep(180);
+      if (btn.getAttribute('aria-pressed') === 'true') return true;
     }
     return false;
-  }
-
-  // Click the CC button and detect whether a language panel popped up.
-  // Returns 'pressed' if we turned captions on, 'panel' if a language list appeared, false otherwise.
-  function clickCcAndDetectPanel() {
-    const btn = document.querySelector('.ytp-subtitles-button');
-    if (!btn) return false;
-    // If a language panel (the new popout list) is already visible, treat as panel.
-    const panel = document.querySelector('.ytp-panel-menu, .ytp-popup .ytp-panel-menu, .ytp-sb-slot, .ytp-caption-window-container');
-    if (panel && panel.offsetParent && /中文|Chinese/.test(panel.textContent)) return 'panel';
-
-    const pressed = btn.getAttribute('aria-pressed') === 'true';
-    if (!pressed) {
-      fireRealClick(btn);
-      // Give YouTube a moment to render the language menu.
-      return 'clicked';
-    }
-    return 'already';
   }
 
   function settingsMenuVisible() {
@@ -157,14 +159,14 @@
 
   // Click the settings gear with a real event chain, then poll until the
   // settings menu actually opens. Retry up to maxTries with a short delay.
-  async function openSettingsMenu(maxTries = 3) {
+  async function openSettingsMenu(maxTries = 4) {
     const btn = document.querySelector('.ytp-settings-button');
     if (!btn) return false;
     if (settingsMenuVisible()) return true;
     for (let i = 0; i < maxTries; i++) {
       fireRealClick(btn);
-      for (let t = 0; t < 5; t++) {
-        await sleep(100);
+      for (let t = 0; t < 6; t++) {
+        await sleep(120);
         if (settingsMenuVisible()) return true;
       }
     }
@@ -175,8 +177,46 @@
     return Array.from(document.querySelectorAll('.ytp-menuitem, .ytp-panel-menu .ytp-menuitem'));
   }
 
-  function findMenuItem(labelRe) {
-    return settingsMenuItems().find((el) => labelRe.test(el.textContent.trim()));
+  function findMenuItem(labelRe, root) {
+    const items = root
+      ? Array.from(root.querySelectorAll('.ytp-menuitem'))
+      : settingsMenuItems();
+    return items.find((el) => labelRe.test(el.textContent.trim()));
+  }
+
+  // Click a menu item matching labelRe, then poll until the next submenu
+  // (a new .ytp-panel-menu) actually appears before resolving.
+  async function clickMenuItemAndWait(labelRe, timeout = 3000) {
+    const start = Date.now();
+    const prevPanels = document.querySelectorAll('.ytp-panel-menu').length;
+    while (Date.now() - start < timeout) {
+      const item = findMenuItem(labelRe);
+      if (item) {
+        fireRealClick(item);
+        // Wait for a deeper panel to render (submenu opened) OR just settle.
+        for (let t = 0; t < 10; t++) {
+          await sleep(120);
+          if (document.querySelectorAll('.ytp-panel-menu').length > prevPanels) return true;
+        }
+        return true;
+      }
+      await sleep(150);
+    }
+    return false;
+  }
+
+  // Click the CC button; on newer players a language list pops up directly.
+  // We poll until either a panel appears or the button reports pressed.
+  async function openCcPanel(maxTries = 5) {
+    const btn = document.querySelector('.ytp-subtitles-button');
+    if (!btn) return false;
+    for (let i = 0; i < maxTries; i++) {
+      const panel = document.querySelector('.ytp-panel-menu, .ytp-popup .ytp-panel-menu');
+      if (panel && panel.offsetParent) return true;
+      if (btn.getAttribute('aria-pressed') !== 'true') fireRealClick(btn);
+      await sleep(200);
+    }
+    return false;
   }
 
   function closeSettingsMenu() {
@@ -185,60 +225,74 @@
     if (panel && panel.offsetParent && btn) fireRealClick(btn);
   }
 
-  async function selectMenuPath(labels, timeout = 3500) {
-    const start = Date.now();
-    for (const labelRe of labels) {
-      while (Date.now() - start < timeout) {
-        const item = findMenuItem(labelRe);
-        if (item) {
-          fireRealClick(item);
-          await sleep(250);
-          break;
-        }
-        await sleep(150);
-      }
-    }
+  function langLabelRe(lang) {
+    return lang === 'zh-CN' || lang === 'zh-Hans' || lang.startsWith('zh')
+      ? /^(中文（简体）|中文 \(简体\)|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)$/i
+      : new RegExp('^' + lang.replace(/[-]/g, '[- ]?') + '$', 'i');
   }
 
   async function applyUiFallback() {
     if (!isEnabled()) return false;
-    const target = settings[K.TARGET_LANG];
-    const targetLabel = target === 'zh-CN' || target === 'zh-Hans' || target.startsWith('zh')
-      ? /^(中文（简体）|中文 \(简体\)|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)$/i
-      : new RegExp('^' + target.replace(/[-]/g, '[- ]?') + '$', 'i');
+
+    // Step 1: make sure captions are on.
+    const ccOn = await ensureCaptionsOn();
+    if (!ccOn) return false;
 
     try {
-      // Path B: click the CC button directly; on newer players a language list pops up.
-      const res = clickCcAndDetectPanel();
-      await sleep(400);
-      if (res === 'clicked' || res === 'panel' || res === 'already') {
-        // Look for a standalone language panel (new YouTube UI).
+      if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
+        // Path: CC panel -> "English (auto-generated)".
+        await openCcPanel();
         const panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
-        let picked = false;
+        const target = /^(English \(auto-generated\)|英语（自动生成）|英语 ?\(auto-generated\)|English ?\(auto-generated\))$/i;
         for (const el of panelItems) {
-          if (targetLabel.test(el.textContent.trim())) {
+          if (target.test(el.textContent.trim())) {
             fireRealClick(el);
-            picked = true;
-            break;
+            closeSettingsMenu();
+            return true;
           }
         }
-        if (picked) {
+        // Fallback through settings gear.
+        if (!await openSettingsMenu()) return false;
+        await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i);
+        await clickMenuItemAndWait(/^(English \(auto-generated\)|英语（自动生成）|English ?\(auto-generated\))$/i);
+        closeSettingsMenu();
+        return true;
+      }
+
+      // Auto-translate path.
+      const target = settings[K.TARGET_LANG];
+      const labelRe = langLabelRe(target);
+
+      // Try the direct CC panel first.
+      await openCcPanel();
+      let panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
+      for (const el of panelItems) {
+        if (labelRe.test(el.textContent.trim())) {
+          fireRealClick(el);
           closeSettingsMenu();
           return true;
         }
       }
 
-      // Path A: settings gear -> Subtitles/CC -> Auto-translate -> target language.
-      clickSubtitlesButton();
-      await sleep(300);
+      // Fallback: settings gear -> Subtitles/CC -> Auto-translate -> target.
       if (!await openSettingsMenu()) return false;
-      await sleep(350);
-      await selectMenuPath([
-        /^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i,
-        /^(Auto-translate|自动翻译|Translate|翻译)$/i,
-        targetLabel,
-      ], 2000);
-
+      await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i);
+      await clickMenuItemAndWait(/^(Auto-translate|自动翻译|Translate|翻译)$/i);
+      // Now we are in the language list; click the target language.
+      const start = Date.now();
+      while (Date.now() - start < 3000) {
+        const items = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
+        let picked = false;
+        for (const el of items) {
+          if (labelRe.test(el.textContent.trim())) {
+            fireRealClick(el);
+            picked = true;
+            break;
+          }
+        }
+        if (picked) break;
+        await sleep(150);
+      }
       closeSettingsMenu();
       return true;
     } catch (e) {

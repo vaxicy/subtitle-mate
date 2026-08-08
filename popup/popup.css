@@ -85,6 +85,18 @@ body {
   margin-bottom: 6px;
   font-weight: 600;
 }
+.block-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--secondary);
+  margin: -2px 0 6px;
+  opacity: 0.8;
+}
+.select.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background-color: #FAFAFA;
+}
 .select {
   width: 100%;
   padding: 10px 12px;

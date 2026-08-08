@@ -13,7 +13,7 @@
 
     <section class="row">
       <div class="row-text">
-        <div class="row-title" id="lblAutoCaptions">Auto Captions</div>
+        <div class="row-title" id="lblAutoCaptions">Auto-enable captions</div>
       </div>
       <button id="toggleAuto" class="toggle" role="switch" aria-checked="true">
         <span class="knob"></span>
@@ -21,12 +21,13 @@
     </section>
 
     <section class="block">
-      <label class="block-label" id="lblTranslationLang">Translation Language</label>
-      <select id="sourceLang" class="select"></select>
+      <label class="block-label" id="lblCaptionMode">Caption mode</label>
+      <select id="captionMode" class="select"></select>
     </section>
 
     <section class="block">
-      <label class="block-label" id="lblTargetLang">Target Language</label>
+      <label class="block-label" id="lblTargetLang">Translate to</label>
+      <span class="block-hint" id="lblTargetLangHint"></span>
       <select id="targetLang" class="select"></select>
     </section>
 
