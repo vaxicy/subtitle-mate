@@ -1,0 +1,1 @@
+修复自动翻译不生效：content.js API 成功后验证翻译语言，未生效则走 UI fallback

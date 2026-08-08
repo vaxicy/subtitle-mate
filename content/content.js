@@ -57,14 +57,14 @@
     if (typeof player.getAvailableCaptionTracks !== 'function') return null;
     const tracks = player.getAvailableCaptionTracks();
     if (!Array.isArray(tracks) || !tracks.length) return null;
-    // Prefer an already-translated track in the target language.
-    const translated = tracks.find((t) =>
-      (t.langCode === target || t.languageCode === target) &&
-      (t.kind === 'translation' || t.isTranslation || t.name && String(t.name).toLowerCase().includes('translate'))
-    );
-    if (translated) return translated;
-    // Otherwise pick the first available track so we can request translation.
-    return tracks[0];
+    // For auto-translation we must select an ORIGINAL track first.
+    // Prefer English auto-generated, otherwise the first non-translation track.
+    const isTranslation = (t) => t.kind === 'translation' || t.isTranslation ||
+      (t.name && String(t.name).toLowerCase().includes('translate'));
+    const original = tracks.find((t) =>
+      !isTranslation(t) && (t.langCode === 'en' || t.languageCode === 'en')
+    ) || tracks.find((t) => !isTranslation(t)) || tracks[0];
+    return original;
   }
 
   function applyApi(player) {
@@ -108,6 +108,33 @@
     } catch (e) {
       return false;
     }
+  }
+
+  function getCurrentTranslationLang(player) {
+    if (!player) return null;
+    try {
+      if (typeof player.getOption === 'function') {
+        const track = player.getOption('captions', 'track');
+        if (track) {
+          if (track.translationLanguage) return track.translationLanguage.languageCode || track.translationLanguage;
+          if (track.translationLang) return track.translationLang.languageCode || track.translationLang;
+        }
+        const tl = player.getOption('captions', 'translationLanguage');
+        if (tl) return tl.languageCode || tl;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function isTargetLang(current) {
+    if (!current) return false;
+    const target = settings[K.TARGET_LANG];
+    const cur = String(current).toLowerCase();
+    const tgt = target.toLowerCase();
+    if (cur === tgt) return true;
+    // zh-CN / zh-Hans / zh should all match each other.
+    if (tgt.startsWith('zh') && cur.includes('zh')) return true;
+    return cur.startsWith(tgt.split('-')[0]);
   }
 
   // --- UI fallback: click the actual player buttons so YouTube does the work for us ---
@@ -210,11 +237,13 @@
   async function openCcPanel(maxTries = 5) {
     const btn = document.querySelector('.ytp-subtitles-button');
     if (!btn) return false;
+    const wasPressed = btn.getAttribute('aria-pressed') === 'true';
     for (let i = 0; i < maxTries; i++) {
       const panel = document.querySelector('.ytp-panel-menu, .ytp-popup .ytp-panel-menu');
       if (panel && panel.offsetParent) return true;
-      if (btn.getAttribute('aria-pressed') !== 'true') fireRealClick(btn);
-      await sleep(200);
+      // Only click if captions are currently off; otherwise we'd toggle them off.
+      if (!wasPressed && btn.getAttribute('aria-pressed') !== 'true') fireRealClick(btn);
+      await sleep(250);
     }
     return false;
   }
@@ -322,10 +351,24 @@
       return;
     }
 
-    let ok = applyApi(player);
+    let ok = false;
+    try {
+      ok = applyApi(player);
+    } catch (e) {
+      ok = false;
+    }
+
     if (!ok) {
       // API route failed; use the UI fallback.
       ok = await applyUiFallback();
+    } else if (settings[K.CAPTION_MODE] !== MODE.AUTO_GENERATED) {
+      // The API reported success, but we must verify translation actually took effect.
+      await sleep(700);
+      const current = getCurrentTranslationLang(player);
+      if (!isTargetLang(current)) {
+        console.log('[SubtitleMate] API did not translate to target, using UI fallback. current=', current);
+        ok = await applyUiFallback();
+      }
     }
 
     if (ok) {
