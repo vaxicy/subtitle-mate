@@ -4,7 +4,7 @@
 chrome.runtime.onInstalled.addListener(async () => {
   const defs = {
     sm_autoCaptions: true,
-    sm_sourceLang: 'en',
+    sm_captionMode: 'translate',
     sm_targetLang: 'zh-CN',
     sm_rememberLang: true,
     sm_autoOnYt: true,

@@ -99,9 +99,9 @@
   }
 
   if (typeof window !== 'undefined') {
-    window.SM = { STORAGE_KEYS, LANGUAGES, I18N, DEFAULTS, getSettings, setSettings, getCurrentUiLang, setCurrentUiLang };
+    window.SM = { STORAGE_KEYS, LANGUAGES, CAPTION_MODES, I18N, DEFAULTS, getSettings, setSettings, getCurrentUiLang, setCurrentUiLang };
   }
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { STORAGE_KEYS, LANGUAGES, I18N, DEFAULTS, getSettings, setSettings };
+    module.exports = { STORAGE_KEYS, LANGUAGES, CAPTION_MODES, I18N, DEFAULTS, getSettings, setSettings };
   }
 })();
