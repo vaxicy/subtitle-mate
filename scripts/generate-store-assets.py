@@ -46,35 +46,17 @@ def draw_center(d, cx, cy, s, f, fill):
 
 
 # ---------- Icon ----------
+# Source of truth is the AI-generated icon saved as store-assets/icon-source.png.
+# This prevents the PIL script from silently overwriting the AI icon.
+ICON_SOURCE = os.path.join(ROOT, "store-assets", "icon-source.png")
+
+_source_icon = None
+
 def make_icon(size):
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    r = int(size * 0.22)
-    d.rounded_rectangle([0, 0, size, size], radius=r, fill=PRIMARY)
-    # Speech bubble body
-    m = int(size * 0.20)
-    bw, bh = size - 2 * m, int(size * 0.42)
-    bx, by = m, int(size * 0.18)
-    d.rounded_rectangle([bx, by, bx + bw, by + bh], radius=int(size * 0.12), fill=WHITE)
-    # tail
-    t = int(size * 0.12)
-    d.polygon([(bx + int(bw * 0.30), by + bh - 1),
-               (bx + int(bw * 0.30) + t, by + bh + t),
-               (bx + int(bw * 0.30) + t, by + bh - 1)], fill=WHITE)
-    # CC mark
-    cy = by + bh / 2
-    gap = int(size * 0.05)
-    cw = int(size * 0.055)
-    ch = int(size * 0.055)
-    for i, cx in enumerate([bx + int(bw * 0.28), bx + int(bw * 0.55)]):
-        d.rounded_rectangle([cx, cy - ch, cx + cw, cy + ch], radius=2, outline=PRIMARY, width=max(1, int(size * 0.012)))
-        d.line([cx + 1, cy, cx + cw - 1, cy], fill=PRIMARY, width=max(1, int(size * 0.012)))
-    # AI sparkle accent (top-right)
-    sx, sy = size - m - int(size * 0.12), by + int(size * 0.02)
-    sr = int(size * 0.05)
-    d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=ACCENT)
-    draw_center(d, sx, sy, "+", font(int(size * 0.10), bold=True), WHITE)
-    return img
+    global _source_icon
+    if _source_icon is None:
+        _source_icon = Image.open(ICON_SOURCE).convert("RGBA")
+    return _source_icon.resize((size, size), Image.LANCZOS)
 
 
 def gen_icons():
