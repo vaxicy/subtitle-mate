@@ -144,14 +144,16 @@
   function fireRealClick(el) {
     if (!el) return;
     const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
     const opts = {
       bubbles: true,
       cancelable: true,
       view: window,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-      screenX: rect.left + rect.width / 2,
-      screenY: rect.top + rect.height / 2,
+      clientX: cx,
+      clientY: cy,
+      screenX: cx,
+      screenY: cy,
       button: 0,
       buttons: 1,
       pointerId: 1,
@@ -163,6 +165,32 @@
     el.dispatchEvent(new PointerEvent('pointerup', opts));
     el.dispatchEvent(new MouseEvent('mouseup', opts));
     el.dispatchEvent(new MouseEvent('click', opts));
+  }
+
+  // Resolve when a MutationObserver predicate holds or timeout elapses.
+  function waitFor(condition, { timeout = 4000, interval = 120 } = {}) {
+    return new Promise((resolve) => {
+      if (condition()) return resolve(true);
+      const start = Date.now();
+      const mo = new MutationObserver(() => {
+        if (condition()) {
+          mo.disconnect();
+          clearTimeout(timer);
+          resolve(true);
+        }
+      });
+      const timer = setTimeout(() => {
+        mo.disconnect();
+        resolve(!!condition());
+      }, timeout);
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+    });
+  }
+
+  // Count currently visible .ytp-panel-menu panels (settings submenus).
+  function countPanels() {
+    return Array.from(document.querySelectorAll('.ytp-panel-menu'))
+      .filter((p) => p.offsetParent).length;
   }
 
   // Run cb after the CC button is guaranteed pressed; returns true if captions
@@ -204,32 +232,42 @@
     return Array.from(document.querySelectorAll('.ytp-menuitem, .ytp-panel-menu .ytp-menuitem'));
   }
 
+  // Menu item text is nested in .ytp-menuitem-label; read it first, fall back
+  // to the whole element's textContent (avoids matching icon glyphs).
+  function menuItemText(el) {
+    const label = el.querySelector('.ytp-menuitem-label');
+    return (label ? label.textContent : el.textContent).trim();
+  }
+
   function findMenuItem(labelRe, root) {
     const items = root
       ? Array.from(root.querySelectorAll('.ytp-menuitem'))
       : settingsMenuItems();
-    return items.find((el) => labelRe.test(el.textContent.trim()));
+    return items.find((el) => labelRe.test(menuItemText(el)));
   }
 
-  // Click a menu item matching labelRe, then poll until the next submenu
-  // (a new .ytp-panel-menu) actually appears before resolving.
+  // Click a menu item matching labelRe, then wait until the next submenu
+  // (a new .ytp-panel-menu) actually appears before resolving. Falls back
+  // to a settle delay if no deeper panel is expected.
   async function clickMenuItemAndWait(labelRe, timeout = 3000) {
-    const start = Date.now();
-    const prevPanels = document.querySelectorAll('.ytp-panel-menu').length;
-    while (Date.now() - start < timeout) {
-      const item = findMenuItem(labelRe);
-      if (item) {
-        fireRealClick(item);
-        // Wait for a deeper panel to render (submenu opened) OR just settle.
-        for (let t = 0; t < 10; t++) {
-          await sleep(120);
-          if (document.querySelectorAll('.ytp-panel-menu').length > prevPanels) return true;
-        }
-        return true;
-      }
-      await sleep(150);
-    }
-    return false;
+    const prevPanels = countPanels();
+    const ok = await waitFor(() => !!findMenuItem(labelRe), { timeout });
+    if (!ok) return false;
+    const item = findMenuItem(labelRe);
+    fireRealClick(item);
+    // Wait for a deeper panel to render (submenu opened) OR just settle.
+    await waitFor(() => countPanels() > prevPanels, { timeout: 2500 });
+    return true;
+  }
+
+  // Click a menu item matching labelRe inside the current language list, then
+  // wait until captions reflect the target (or the menu settles).
+  async function clickLangItemAndWait(labelRe, timeout = 3000) {
+    const ok = await waitFor(() => !!findMenuItem(labelRe), { timeout });
+    if (!ok) return false;
+    const item = findMenuItem(labelRe);
+    fireRealClick(item);
+    return true;
   }
 
   // Click the CC button; on newer players a language list pops up directly.
@@ -255,9 +293,14 @@
   }
 
   function langLabelRe(lang) {
-    return lang === 'zh-CN' || lang === 'zh-Hans' || lang.startsWith('zh')
-      ? /^(中文（简体）|中文 \(简体\)|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)$/i
-      : new RegExp('^' + lang.replace(/[-]/g, '[- ]?') + '$', 'i');
+    // Use a partial match (not anchored fully) so YouTube's trailing
+    // annotations like "(auto-generated)" after a language name still match.
+    if (lang === 'zh-CN' || lang === 'zh-Hans' || lang.startsWith('zh')) {
+      return /(中文（简体）|中文 \(简体\)|中文 ?- ?简体|中文|Chinese ?\(Simplified\)|Chinese ?- ?Simplified|Chinese)/i;
+    }
+    // For other langs, allow the base code plus optional suffixes.
+    const base = lang.split('-')[0];
+    return new RegExp('(^|[^a-z])' + base.replace(/[-]/g, '[- ]?') + '($|[^a-z])', 'i');
   }
 
   async function applyUiFallback() {
@@ -271,10 +314,10 @@
       if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
         // Path: CC panel -> "English (auto-generated)".
         await openCcPanel();
-        const panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
-        const target = /^(English \(auto-generated\)|英语（自动生成）|英语 ?\(auto-generated\)|English ?\(auto-generated\))$/i;
+        let panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
+        const target = /(English \(auto-generated\)|英语（自动生成）|英语 ?\(auto-generated\)|English)/i;
         for (const el of panelItems) {
-          if (target.test(el.textContent.trim())) {
+          if (target.test(menuItemText(el))) {
             fireRealClick(el);
             closeSettingsMenu();
             return true;
@@ -282,8 +325,8 @@
         }
         // Fallback through settings gear.
         if (!await openSettingsMenu()) return false;
-        await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i);
-        await clickMenuItemAndWait(/^(English \(auto-generated\)|英语（自动生成）|English ?\(auto-generated\))$/i);
+        await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)/i);
+        await clickMenuItemAndWait(/^(English \(auto-generated\)|英语（自动生成）|English)/i);
         closeSettingsMenu();
         return true;
       }
@@ -292,36 +335,26 @@
       const target = settings[K.TARGET_LANG];
       const labelRe = langLabelRe(target);
 
-      // Try the direct CC panel first.
+      // Try the direct CC panel first (some players expose the language list here).
       await openCcPanel();
       let panelItems = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
       for (const el of panelItems) {
-        if (labelRe.test(el.textContent.trim())) {
+        if (labelRe.test(menuItemText(el))) {
           fireRealClick(el);
           closeSettingsMenu();
           return true;
         }
       }
 
-      // Fallback: settings gear -> Subtitles/CC -> Auto-translate -> target.
+      // Main path: settings gear -> Subtitles/CC -> Auto-translate -> target.
       if (!await openSettingsMenu()) return false;
-      await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i);
-      await clickMenuItemAndWait(/^(Auto-translate|自动翻译|Translate|翻译)$/i);
-      // Now we are in the language list; click the target language.
-      const start = Date.now();
-      while (Date.now() - start < 3000) {
-        const items = document.querySelectorAll('.ytp-panel-menu .ytp-menuitem, .ytp-popup .ytp-menuitem');
-        let picked = false;
-        for (const el of items) {
-          if (labelRe.test(el.textContent.trim())) {
-            fireRealClick(el);
-            picked = true;
-            break;
-          }
-        }
-        if (picked) break;
-        await sleep(150);
-      }
+      await clickMenuItemAndWait(/^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)/i);
+      await clickMenuItemAndWait(/^(Auto-translate|自动翻译|Translate|翻译)/i);
+      // Now we are in the language list; click the target language and wait
+      // for the menu to settle (panel count may stay the same, so use a short
+      // wait instead of relying on a deeper panel).
+      await clickLangItemAndWait(labelRe, 3000);
+      await sleep(400);
       closeSettingsMenu();
       return true;
     } catch (e) {
