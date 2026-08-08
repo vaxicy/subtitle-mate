@@ -1,0 +1,6 @@
+{
+  "ext_name": { "message": "字幕助手 SubtitleMate", "description": "Extension name" },
+  "ext_short_name": { "message": "字幕助手", "description": "Short name" },
+  "ext_description": { "message": "自动开启 YouTube 字幕并翻译成你偏好的语言。一次设置，永久观看。", "description": "Store listing description" },
+  "action_title": { "message": "SubtitleMate - 自动字幕与翻译", "description": "Toolbar tooltip" }
+}

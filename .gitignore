@@ -1,0 +1,10 @@
+# Local / sensitive files
+.codebuddy/
+*.tmp
+*.bak
+*.log
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db

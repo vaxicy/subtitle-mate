@@ -1,0 +1,8 @@
+.codebuddy/
+scripts/
+*.md
+.gitignore
+*.tmp
+*.bak
+*.log
+node_modules/

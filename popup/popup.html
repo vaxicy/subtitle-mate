@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="card">
+    <header class="header">
+      <img id="logo" class="logo" alt="SubtitleMate" width="28" height="28" />
+      <span class="title" id="extName">SubtitleMate</span>
+    </header>
+
+    <section class="row">
+      <div class="row-text">
+        <div class="row-title" id="lblAutoCaptions">Auto Captions</div>
+      </div>
+      <button id="toggleAuto" class="toggle" role="switch" aria-checked="true">
+        <span class="knob"></span>
+      </button>
+    </section>
+
+    <section class="block">
+      <label class="block-label" id="lblTranslationLang">Translation Language</label>
+      <select id="sourceLang" class="select"></select>
+    </section>
+
+    <section class="block">
+      <label class="block-label" id="lblTargetLang">Target Language</label>
+      <select id="targetLang" class="select"></select>
+    </section>
+
+    <section class="checks">
+      <label class="check">
+        <input type="checkbox" id="chkRemember" />
+        <span id="lblRemember">Remember language preference</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="chkAutoYt" />
+        <span id="lblAutoYt">Enable automatically on YouTube</span>
+      </label>
+    </section>
+
+    <footer class="footer">
+      <span class="saved" id="savedHint"></span>
+      <button id="langSwitch" class="lang-switch" title="Switch UI language">EN / 中文</button>
+    </footer>
+  </div>
+
+  <script src="../shared/shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

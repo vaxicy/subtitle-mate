@@ -1,0 +1,93 @@
+// Shared module: i18n dictionary + storage key constants + storage helpers.
+// Loaded as a classic script in popup.html (and referenced for key names in content.js).
+
+(function () {
+  const STORAGE_KEYS = {
+    AUTO_CAPTIONS: 'sm_autoCaptions',
+    SOURCE_LANG: 'sm_sourceLang',
+    TARGET_LANG: 'sm_targetLang',
+    REMEMBER_LANG: 'sm_rememberLang',
+    AUTO_ON_YT: 'sm_autoOnYt',
+  };
+
+  const LANGUAGES = [
+    { code: 'en', en: 'English', zh: '英语' },
+    { code: 'zh-CN', en: 'Chinese (Simplified)', zh: '中文（简体）' },
+    { code: 'zh-TW', en: 'Chinese (Traditional)', zh: '中文（繁体）' },
+    { code: 'ja', en: 'Japanese', zh: '日语' },
+    { code: 'ko', en: 'Korean', zh: '韩语' },
+    { code: 'fr', en: 'French', zh: '法语' },
+    { code: 'de', en: 'German', zh: '德语' },
+    { code: 'es', en: 'Spanish', zh: '西班牙语' },
+    { code: 'pt', en: 'Portuguese', zh: '葡萄牙语' },
+    { code: 'ru', en: 'Russian', zh: '俄语' },
+    { code: 'it', en: 'Italian', zh: '意大利语' },
+    { code: 'ar', en: 'Arabic', zh: '阿拉伯语' },
+    { code: 'hi', en: 'Hindi', zh: '印地语' },
+    { code: 'th', en: 'Thai', zh: '泰语' },
+    { code: 'vi', en: 'Vietnamese', zh: '越南语' },
+  ];
+
+  // UI-only copy. We keep popup text dynamic by language so it can be switched.
+  const I18N = {
+    en: {
+      name: 'SubtitleMate',
+      autoCaptions: 'Auto Captions',
+      translationLang: 'Translation Language',
+      targetLang: 'Target Language',
+      remember: 'Remember language preference',
+      autoOnYt: 'Enable automatically on YouTube',
+      settings: 'Settings',
+      on: 'ON', off: 'OFF',
+      saved: 'Saved',
+    },
+    zh: {
+      name: '字幕助手',
+      autoCaptions: '自动字幕',
+      translationLang: '字幕语言',
+      targetLang: '目标语言',
+      remember: '记住语言偏好',
+      autoOnYt: '在 YouTube 上自动启用',
+      settings: '设置',
+      on: '开', off: '关',
+      saved: '已保存',
+    },
+  };
+
+  const DEFAULTS = {
+    [STORAGE_KEYS.AUTO_CAPTIONS]: true,
+    [STORAGE_KEYS.SOURCE_LANG]: 'en',
+    [STORAGE_KEYS.TARGET_LANG]: 'zh-CN',
+    [STORAGE_KEYS.REMEMBER_LANG]: true,
+    [STORAGE_KEYS.AUTO_ON_YT]: true,
+  };
+
+  async function getSettings() {
+    const data = await chrome.storage.sync.get(DEFAULTS);
+    const out = {};
+    for (const k of Object.keys(DEFAULTS)) out[k] = data[k];
+    return out;
+  }
+
+  async function setSettings(patch) {
+    await chrome.storage.sync.set(patch);
+  }
+
+  function getCurrentUiLang() {
+    const stored = localStorage.getItem('sm_uiLang');
+    if (stored === 'en' || stored === 'zh') return stored;
+    const nav = (navigator.language || 'en').toLowerCase();
+    return nav.startsWith('zh') ? 'zh' : 'en';
+  }
+
+  function setCurrentUiLang(lang) {
+    localStorage.setItem('sm_uiLang', lang);
+  }
+
+  if (typeof window !== 'undefined') {
+    window.SM = { STORAGE_KEYS, LANGUAGES, I18N, DEFAULTS, getSettings, setSettings, getCurrentUiLang, setCurrentUiLang };
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { STORAGE_KEYS, LANGUAGES, I18N, DEFAULTS, getSettings, setSettings };
+  }
+})();
