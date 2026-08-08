@@ -95,12 +95,38 @@
 
   // --- UI fallback: click the actual player buttons so YouTube does the work for us ---
 
+  // Dispatch a full event chain so YouTube's player buttons actually respond.
+  // YouTube listens for pointer/mouse sequences, not just a synthetic .click().
+  function fireRealClick(el) {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      screenX: rect.left + rect.width / 2,
+      screenY: rect.top + rect.height / 2,
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      pointerType: 'mouse',
+      isPrimary: true,
+    };
+    el.dispatchEvent(new PointerEvent('pointerdown', opts));
+    el.dispatchEvent(new MouseEvent('mousedown', opts));
+    el.dispatchEvent(new PointerEvent('pointerup', opts));
+    el.dispatchEvent(new MouseEvent('mouseup', opts));
+    el.dispatchEvent(new MouseEvent('click', opts));
+  }
+
   function clickSubtitlesButton() {
     const btn = document.querySelector('.ytp-subtitles-button');
     if (!btn) return false;
     const pressed = btn.getAttribute('aria-pressed') === 'true';
     if (!pressed) {
-      btn.click();
+      fireRealClick(btn);
       return true;
     }
     return false;
@@ -117,21 +143,32 @@
 
     const pressed = btn.getAttribute('aria-pressed') === 'true';
     if (!pressed) {
-      btn.click();
+      fireRealClick(btn);
       // Give YouTube a moment to render the language menu.
       return 'clicked';
     }
     return 'already';
   }
 
-  function openSettingsMenu() {
+  function settingsMenuVisible() {
+    const panel = document.querySelector('.ytp-settings-menu');
+    return !!(panel && panel.offsetParent && (panel.style.display !== 'none'));
+  }
+
+  // Click the settings gear with a real event chain, then poll until the
+  // settings menu actually opens. Retry up to maxTries with a short delay.
+  async function openSettingsMenu(maxTries = 3) {
     const btn = document.querySelector('.ytp-settings-button');
     if (!btn) return false;
-    const panel = document.querySelector('.ytp-settings-menu');
-    if (!panel || panel.style.display === 'none' || !panel.offsetParent) {
-      btn.click();
+    if (settingsMenuVisible()) return true;
+    for (let i = 0; i < maxTries; i++) {
+      fireRealClick(btn);
+      for (let t = 0; t < 5; t++) {
+        await sleep(100);
+        if (settingsMenuVisible()) return true;
+      }
     }
-    return true;
+    return false;
   }
 
   function settingsMenuItems() {
@@ -145,7 +182,7 @@
   function closeSettingsMenu() {
     const btn = document.querySelector('.ytp-settings-button');
     const panel = document.querySelector('.ytp-settings-menu');
-    if (panel && panel.offsetParent && btn) btn.click();
+    if (panel && panel.offsetParent && btn) fireRealClick(btn);
   }
 
   async function selectMenuPath(labels, timeout = 3500) {
@@ -154,7 +191,7 @@
       while (Date.now() - start < timeout) {
         const item = findMenuItem(labelRe);
         if (item) {
-          item.click();
+          fireRealClick(item);
           await sleep(250);
           break;
         }
@@ -180,7 +217,7 @@
         let picked = false;
         for (const el of panelItems) {
           if (targetLabel.test(el.textContent.trim())) {
-            el.click();
+            fireRealClick(el);
             picked = true;
             break;
           }
@@ -194,7 +231,7 @@
       // Path A: settings gear -> Subtitles/CC -> Auto-translate -> target language.
       clickSubtitlesButton();
       await sleep(300);
-      if (!openSettingsMenu()) return false;
+      if (!await openSettingsMenu()) return false;
       await sleep(350);
       await selectMenuPath([
         /^(Subtitles\/CC|CC|Subtitles|字幕|字幕\/CC)$/i,

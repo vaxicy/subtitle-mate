@@ -1,11 +1,11 @@
 :root {
-  --primary: #5865F2;
-  --accent: #FF4E6A;
+  --primary: #E53935;
+  --accent: #FF3B30;
   --bg: #FFFFFF;
-  --text: #1F2937;
-  --secondary: #6B7280;
-  --surface: #F5F6FA;
-  --border: #E6E8EF;
+  --text: #1F1F1F;
+  --secondary: #757575;
+  --surface: #FFF5F5;
+  --border: #FFE0E0;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -58,7 +58,7 @@ body {
   height: 24px;
   border: none;
   border-radius: 12px;
-  background: #CBD0E0;
+  background: #FFD2D2;
   cursor: pointer;
   transition: background 0.2s ease;
   flex: 0 0 auto;
@@ -94,7 +94,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%236B7280' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%23E53935' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat: no-repeat;
   background-position: right 12px center;
   cursor: pointer;
