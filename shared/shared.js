@@ -10,6 +10,7 @@
     AUTO_RELOAD_ON_FAIL: 'sm_autoReloadOnFail',
     AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
     PLAYBACK_RATE: 'sm_playbackRate',
+    UI_LANG: 'sm_uiLang',
   };
 
   // Allowed playback rate values (matches YouTube's speed menu).
@@ -93,6 +94,7 @@
     [STORAGE_KEYS.AUTO_RELOAD_ON_FAIL]: false,
     [STORAGE_KEYS.AUTO_PLAYBACK_SPEED]: false,
     [STORAGE_KEYS.PLAYBACK_RATE]: 1.5,
+    [STORAGE_KEYS.UI_LANG]: 'en',
   };
 
   async function getSettings() {
@@ -115,6 +117,9 @@
 
   function setCurrentUiLang(lang) {
     localStorage.setItem('sm_uiLang', lang);
+    try {
+      chrome.storage.sync.set({ [STORAGE_KEYS.UI_LANG]: lang });
+    } catch (e) {}
   }
 
   if (typeof window !== 'undefined') {

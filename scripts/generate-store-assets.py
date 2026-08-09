@@ -215,7 +215,7 @@ def draw_promo(w, h, filepath):
 
     # Title — placed below the icon card (English brand name only)
     title_en = "SubtitleMate"
-    ty = card_y + card_sz + int(28 * scale)
+    ty = card_y + card_sz + int(44 * scale)
     draw_center(d, panel_w/2, ty, title_en, font(int(34*scale), bold=True), WHITE)
 
     # Right side: headline + CTA

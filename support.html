@@ -92,14 +92,14 @@
       };
       async function detectLang() {
         try {
+          const res = await chrome.storage.sync.get('sm_uiLang');
+          const fromSync = res && res.sm_uiLang;
+          if (fromSync === 'en' || fromSync === 'zh') return fromSync;
+        } catch (e) {}
+        try {
           const params = new URL(window.location.href).searchParams;
           const fromUrl = params.get('lang');
           if (fromUrl === 'en' || fromUrl === 'zh') return fromUrl;
-        } catch (e) {}
-        try {
-          const res = await chrome.storage.sync.get('sm_uiLang');
-          const stored = res && res.sm_uiLang;
-          if (stored === 'en' || stored === 'zh') return stored;
         } catch (e) {}
         const stored = localStorage.getItem('sm_uiLang');
         if (stored === 'en' || stored === 'zh') return stored;
