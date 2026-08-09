@@ -1,7 +1,39 @@
 === 中文详细说明 ===
 
-SubtitleMate for YouTube 是一款轻量观看助手。打开视频即自动开启字幕，按你的设置选择翻译字幕或英语（自动生成）字幕，并固定到预设播放速度。一次设置，全站生效。支持深色模式，设置本地保存，不收集个人数据。
+SubtitleMate for YouTube 是一款专注于 YouTube 的轻量观看助手。
+
+打开任意 YouTube 视频，扩展会自动为你开启字幕，并按你的偏好选择：
+- 翻译字幕：自动将字幕翻译为你设定的目标语言；
+- 英语（自动生成）：直接启用 YouTube 英语自动识别字幕。
+
+同时，它可以固定你的播放速度，让每次打开视频都自动回到你习惯的倍速。一次设置，全站生效。
+
+主要功能：
+- 自动开启字幕，无需手动点击 CC
+- 两种字幕模式自由切换（翻译 / 英语自动生成）
+- 自定义目标语言
+- 固定播放速度
+- 深色模式界面
+- 设置本地保存，隐私优先
+
+所有偏好设置均保存在浏览器本地，不收集、不上传任何个人数据。
 
 === English Detailed Description ===
 
-SubtitleMate for YouTube is a lightweight viewing assistant. It auto-enables captions on every video and picks translated or English auto-generated tracks per your settings, snapping playback to your preset speed. Set once, works everywhere. Dark mode supported; preferences stay local, no personal data collected.
+SubtitleMate for YouTube is a lightweight assistant built for YouTube viewers.
+
+When you open any YouTube video, it automatically enables captions and picks the track type you prefer:
+- Translated captions: auto-translate captions into your chosen target language.
+- English (auto-generated): switch directly to YouTube's English auto-generated captions.
+
+It also locks playback to your preset speed, so every video starts at the pace you like. Set once, works on every video.
+
+Key features:
+- Auto-enable captions — no more clicking the CC button
+- Two caption modes (translated or English auto-generated)
+- Custom target language
+- Fixed playback speed
+- Dark mode UI
+- Privacy-first: all settings stay local
+
+Your preferences are saved locally in your browser. SubtitleMate for YouTube does not collect or transmit any personal data.
