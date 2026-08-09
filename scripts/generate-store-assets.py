@@ -121,12 +121,10 @@ def draw_promo(w, h, filepath):
     ic = make_icon(ic_sz)
     img.paste(ic, (card_x + pad, card_y + pad), ic)
 
-    # Title (bilingual) — placed below the icon card
+    # Title — placed below the icon card (English brand name only)
     title_en = "SubtitleMate"
-    title_zh = "字幕助手"
-    ty = card_y + card_sz + int(18 * scale)
-    draw_center(d, panel_w/2, ty, title_en, font(int(30*scale), bold=True), WHITE)
-    draw_center(d, panel_w/2, ty + int(34*scale), title_zh, font(int(22*scale), cjk=True), (255, 220, 220))
+    ty = card_y + card_sz + int(28 * scale)
+    draw_center(d, panel_w/2, ty, title_en, font(int(34*scale), bold=True), WHITE)
 
     # Right side: headline + CTA
     rx = panel_w + int(48*scale)
@@ -206,7 +204,7 @@ def draw_popup_mock(lang):
     # header
     ic = make_icon(int(22*scale))
     img.paste(ic, (inner_x, y), ic)
-    name = "SubtitleMate" if en else "字幕助手"
+    name = "SubtitleMate"
     d.text((inner_x + int(28*scale), y + int(4*scale)), name,
            font=font(int(15*scale), bold=True, cjk=not en), fill=TEXT)
     # lang switch pill
