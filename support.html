@@ -28,49 +28,18 @@
       width: 320px;
       background: var(--surface);
       border-radius: 16px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
       padding: 24px 22px;
       text-align: center;
     }
     h1 {
       font-size: 17px;
       font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .sub {
-      font-size: 12px;
-      color: var(--secondary);
-      margin-bottom: 18px;
-      line-height: 1.5;
-    }
-    .tabs {
-      display: flex;
-      gap: 8px;
       margin-bottom: 18px;
     }
-    .tab {
-      flex: 1;
-      padding: 10px 0;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--secondary);
-      background: var(--bg);
-      border: 1px solid transparent;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .tab.active {
-      color: var(--primary);
-      background: var(--surface);
-      border-color: var(--border);
-      box-shadow: inset 0 0 0 1px var(--border);
-    }
-    .panel { display: none; }
-    .panel.active { display: block; }
     .qr {
-      width: 220px;
-      height: 220px;
+      width: 260px;
+      height: 260px;
       border-radius: 12px;
       border: 1px solid var(--border);
       margin: 0 auto;
@@ -79,12 +48,12 @@
     .qr-note {
       font-size: 12px;
       color: var(--secondary);
-      margin-top: 10px;
+      margin-top: 12px;
+      margin-bottom: 18px;
       line-height: 1.5;
     }
     .paypal-btn {
       display: inline-block;
-      margin-top: 6px;
       padding: 12px 30px;
       font-size: 14px;
       font-weight: 700;
@@ -100,21 +69,11 @@
 <body>
   <div class="card">
     <h1 id="title">Support SubtitleMate</h1>
-    <div class="sub" id="subtitle">Your support keeps this extension free and ad-free.</div>
 
-    <div class="tabs">
-      <div class="tab active" id="tabWechat" data-tab="wechat">WeChat</div>
-      <div class="tab" id="tabPaypal" data-tab="paypal">PayPal</div>
-    </div>
+    <img class="qr" src="icons/wechat-reward.png" alt="WeChat reward QR code" />
+    <div class="qr-note" id="wechatNote">Scan with WeChat to send a reward.</div>
 
-    <div class="panel active" id="panelWechat">
-      <img class="qr" src="icons/wechat-reward.png" alt="WeChat reward QR code" />
-      <div class="qr-note" id="wechatNote">Scan with WeChat to send a reward.</div>
-    </div>
-
-    <div class="panel" id="panelPaypal">
-      <a id="paypalBtn" class="paypal-btn" href="https://www.paypal.com/ncp/payment/6EPWW7KXXXA56" target="_blank" rel="noopener">Pay with PayPal</a>
-    </div>
+    <a id="paypalBtn" class="paypal-btn" href="https://www.paypal.com/ncp/payment/6EPWW7KXXXA56" target="_blank" rel="noopener">Pay with PayPal</a>
   </div>
 
   <script>
@@ -122,18 +81,12 @@
       const I18N = {
         en: {
           title: 'Support SubtitleMate',
-          subtitle: 'Your support keeps this extension free and ad-free.',
-          wechat: 'WeChat',
           wechatNote: 'Scan with WeChat to send a reward.',
-          paypal: 'PayPal',
           paypalBtn: 'Pay with PayPal',
         },
         zh: {
           title: '支持 SubtitleMate',
-          subtitle: '你的支持让这个扩展保持免费、无广告。',
-          wechat: '微信',
           wechatNote: '用微信扫一扫，赞赏开发者。',
-          paypal: 'PayPal',
           paypalBtn: '用 PayPal 付款',
         },
       };
@@ -151,25 +104,8 @@
       const t = I18N[lang];
       document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
       document.getElementById('title').textContent = t.title;
-      document.getElementById('subtitle').textContent = t.subtitle;
-      document.getElementById('tabWechat').textContent = t.wechat;
-      document.getElementById('tabPaypal').textContent = t.paypal;
       document.getElementById('wechatNote').textContent = t.wechatNote;
       document.getElementById('paypalBtn').textContent = t.paypalBtn;
-
-      const tabWechat = document.getElementById('tabWechat');
-      const tabPaypal = document.getElementById('tabPaypal');
-      const panelWechat = document.getElementById('panelWechat');
-      const panelPaypal = document.getElementById('panelPaypal');
-      function switchTab(which) {
-        const isWechat = which === 'wechat';
-        tabWechat.classList.toggle('active', isWechat);
-        tabPaypal.classList.toggle('active', !isWechat);
-        panelWechat.classList.toggle('active', isWechat);
-        panelPaypal.classList.toggle('active', !isWechat);
-      }
-      tabWechat.addEventListener('click', () => switchTab('wechat'));
-      tabPaypal.addEventListener('click', () => switchTab('paypal'));
     })();
   </script>
 </body>
