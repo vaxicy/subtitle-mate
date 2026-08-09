@@ -41,7 +41,7 @@
       const opt = document.createElement('option');
       opt.value = String(r);
       opt.textContent = r + 'x';
-      if (r === selected) opt.selected = true;
+      if (Number(r) === Number(selected)) opt.selected = true;
       select.appendChild(opt);
     }
   }

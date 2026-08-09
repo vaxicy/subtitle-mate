@@ -91,6 +91,8 @@
     [STORAGE_KEYS.TARGET_LANG]: 'zh-CN',
     [STORAGE_KEYS.AUTO_ON_YT]: true,
     [STORAGE_KEYS.AUTO_RELOAD_ON_FAIL]: false,
+    [STORAGE_KEYS.AUTO_PLAYBACK_SPEED]: false,
+    [STORAGE_KEYS.PLAYBACK_RATE]: 1.5,
   };
 
   async function getSettings() {

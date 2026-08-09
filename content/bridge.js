@@ -448,6 +448,90 @@
     return st.translationLanguage === (targetLang || 'zh-CN').toLowerCase();
   }
 
+  // ---------- player-API caption helpers ----------
+
+  function listCaptionTracks(player) {
+    if (!player || typeof player.getOption !== 'function') return [];
+    try {
+      const list = player.getOption('captions', 'tracklist');
+      if (Array.isArray(list) && list.length) return list;
+    } catch (e) {
+      console.log('[SubtitleMate] api: getOption(tracklist) threw -> ' + (e && e.message));
+    }
+    return [];
+  }
+
+  function pickBaseTrack(tracks) {
+    if (!tracks || !tracks.length) return null;
+    let t = tracks.find((tr) =>
+      (tr.languageCode || '').toLowerCase() === 'en' &&
+      (tr.kind || '').toLowerCase() === 'asr');
+    if (t) return t;
+    t = tracks.find((tr) => (tr.languageCode || '').toLowerCase() === 'en');
+    if (t) return t;
+    t = tracks.find((tr) => !tr.translationLanguage);
+    if (t) return t;
+    return tracks[0];
+  }
+
+  function buildTrackForMode(baseTrack, mode, targetLang) {
+    if (!baseTrack) return null;
+    const track = { ...baseTrack };
+    if (mode === 'translate') {
+      track.translationLanguage = { languageCode: targetLang || 'zh-CN' };
+    } else {
+      delete track.translationLanguage;
+    }
+    return track;
+  }
+
+  async function applyViaApi(mode, targetLang) {
+    const player = await waitForPlayer(10000);
+    if (!player) {
+      console.log('[SubtitleMate] api: no player found');
+      return false;
+    }
+    const tracks = listCaptionTracks(player);
+    if (!tracks.length) {
+      console.log('[SubtitleMate] api: no caption tracks available yet');
+      return false;
+    }
+    const baseTrack = pickBaseTrack(tracks);
+    if (!baseTrack) {
+      console.log('[SubtitleMate] api: could not pick a base track');
+      return false;
+    }
+    const track = buildTrackForMode(baseTrack, mode, targetLang);
+    if (!track) return false;
+
+    try {
+      player.setOption('captions', 'track', track);
+      console.log('[SubtitleMate] api: setOption track -> ' +
+        (track.languageCode || '?') + ' translation=' + (track.translationLanguage?.languageCode || 'none'));
+    } catch (e) {
+      console.log('[SubtitleMate] api: setOption threw -> ' + (e && e.message));
+      return false;
+    }
+
+    await sleep(900);
+
+    try {
+      const cur = player.getOption('captions', 'track');
+      const curTl = readTranslationLanguage(cur).toLowerCase();
+      const curBase = (cur && (cur.languageCode || cur.langCode || cur.code || '')).toLowerCase();
+      const domSegments = document.querySelectorAll('.ytp-caption-segment').length;
+      const ok = domSegments > 0 && (
+        (mode === 'translate' && curTl === (targetLang || 'zh-CN').toLowerCase()) ||
+        (mode === 'auto-generated' && /en/.test(curBase) && !curTl)
+      );
+      console.log('[SubtitleMate] api: verify segments=' + domSegments + ' base=' + curBase + ' tl=' + curTl + ' ok=' + ok);
+      return ok;
+    } catch (e) {
+      console.log('[SubtitleMate] api: verify threw -> ' + (e && e.message));
+      return false;
+    }
+  }
+
   // ---------- main handler ----------
 
   async function handleApply(payload) {
@@ -460,19 +544,26 @@
       return { ok: true, info: 'already satisfied, no action needed' };
     }
 
-    // Pure UI-based approach: simulate settings-button clicks. This is the
-    // most stable method across YouTube builds (API paths change often).
+    // 1) Try the player API first (non-invasive, most reliable).
+    const apiOk = await applyViaApi(mode, targetLang);
+    if (apiOk) {
+      return {
+        ok: true,
+        info: (mode === 'auto-generated' ? 'English (auto-generated)' : 'translated to ' + targetLang) + ' via API',
+      };
+    }
+
+    // 2) Fallback to UI simulation if the API path is unavailable.
+    console.log('[SubtitleMate] api failed, falling back to UI');
     const uiOk = await applyViaUi(mode, targetLang);
     if (uiOk) {
-      // Re-check: if target was already selected, the panel may have been
-      // closed without changes but captions are still on — report success.
       return {
         ok: true,
         info: (mode === 'auto-generated' ? 'English (auto-generated)' : 'translated to ' + targetLang) + ' via UI',
       };
     }
 
-    return { ok: false, info: 'UI approach failed' };
+    return { ok: false, info: 'API and UI approaches both failed' };
   }
 
   // Set the video playback rate. Tries the player API first (so the YouTube
