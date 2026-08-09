@@ -57,7 +57,7 @@
       supportLink: 'Support the developer',
     },
     zh: {
-      name: '字幕助手',
+      name: 'SubtitleMate',
       autoCaptions: '自动开启字幕',
       captionMode: '字幕模式',
       modeTranslate: '自动翻译',

@@ -53,10 +53,23 @@ ICON_SOURCE = os.path.join(ROOT, "store-assets", "icon-source.png")
 _source_icon = None
 
 
+def clean_icon_source(img):
+    """Remove the decorative sparkle in the top-right corner of the source icon."""
+    cleaned = img.copy()
+    w, h = cleaned.size
+    px = cleaned.load()
+    x0, y1 = int(w * 0.70), int(h * 0.32)
+    for y in range(y1):
+        for x in range(x0, w):
+            r, g, b, _ = px[x, y]
+            px[x, y] = (r, g, b, 0)
+    return cleaned
+
+
 def make_icon(size):
     global _source_icon
     if _source_icon is None:
-        _source_icon = Image.open(ICON_SOURCE).convert("RGBA")
+        _source_icon = clean_icon_source(Image.open(ICON_SOURCE).convert("RGBA"))
     return _source_icon.resize((size, size), Image.LANCZOS)
 
 
@@ -80,7 +93,7 @@ def make_toolbar_icon(source, target_size=16, fill_ratio=0.92):
 
 def gen_icons():
     os.makedirs(ICONS, exist_ok=True)
-    src = Image.open(ICON_SOURCE).convert("RGBA")
+    src = clean_icon_source(Image.open(ICON_SOURCE).convert("RGBA"))
     for s in (128, 48):
         src.resize((s, s), Image.LANCZOS).save(os.path.join(ICONS, f"icon{s}.png"), "PNG")
     make_toolbar_icon(src, 16, fill_ratio=0.92).save(os.path.join(ICONS, "icon16.png"), "PNG")
@@ -129,8 +142,8 @@ def draw_promo(w, h, filepath):
     # Right side: headline + CTA
     rx = panel_w + int(48*scale)
     hy = int(80*scale)
-    headline_en = "Auto captions & translation"
-    headline_zh = "自动字幕与翻译"
+    headline_en = "Auto-enable captions"
+    headline_zh = "自动开启字幕"
     if is_small:
         d.text((rx, hy), headline_en, font=font(int(16*scale*(1400/440)), bold=True), fill=TEXT)
         d.text((rx, hy + int(22*scale*(1400/440))), headline_zh, font=font(int(13*scale*(1400/440)), cjk=True), fill=SECONDARY)
@@ -144,8 +157,8 @@ def draw_promo(w, h, filepath):
     else:
         d.text((rx, hy), headline_en, font=font(int(26*scale), bold=True), fill=TEXT)
         d.text((rx, hy + int(34*scale)), headline_zh, font=font(int(20*scale), cjk=True), fill=SECONDARY)
-        sub_en = "Set it once, watch global videos forever."
-        sub_zh = "一次设置，看懂全球视频。"
+        sub_en = "Set it once, captions work on every video."
+        sub_zh = "一次设置，每部视频自动出字幕。"
         sy = hy + int(78*scale)
         d.text((rx, sy), sub_en, font=font(int(15*scale)), fill=SECONDARY)
         d.text((rx, sy + int(22*scale)), sub_zh, font=font(int(15*scale), cjk=True), fill=SECONDARY)
@@ -235,7 +248,7 @@ def draw_popup_mock(lang):
     y += int(20 * scale)
     rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(38*scale)], int(8*scale), WHITE)
     d.rectangle([inner_x, y, inner_x + inner_w, y + int(38*scale)], outline=BORDER, width=1)
-    cm_text = "Auto-translate" if en else "自动翻译"
+    cm_text = "Translated captions" if en else "翻译字幕"
     d.text((inner_x + int(10*scale), y + int(10*scale)), cm_text,
            font=font(int(13*scale), cjk=not en), fill=TEXT)
     # chevron
@@ -246,10 +259,10 @@ def draw_popup_mock(lang):
     y += int(38 * scale) + int(6 * scale)
 
     # target lang block
-    d.text((inner_x, y), "Translate to" if en else "翻译为",
+    d.text((inner_x, y), "Translation language" if en else "翻译语言",
            font=font(int(11*scale), cjk=not en), fill=SECONDARY)
     y += int(14 * scale)
-    hint = "Only in Auto-translate mode" if en else "仅在「自动翻译」模式下生效"
+    hint = "Only in Translated-captions mode" if en else "仅在「翻译字幕」模式下生效"
     d.text((inner_x, y), hint, font=font(int(10*scale), cjk=not en), fill=SECONDARY)
     y += int(20 * scale)
     rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(38*scale)], int(8*scale), WHITE)
@@ -330,12 +343,12 @@ def gen_screenshots():
         },
         "screenshot-2-translate.png": {
             "en": {
-                "caption": "Translated subtitles appear instantly",
-                "bottom": "Auto-translate captions into your preferred language",
+                "caption": "Auto-opened captions appear instantly",
+                "bottom": "Automatically open captions in your preferred language",
             },
             "zh": {
-                "caption": "翻译字幕即时呈现",
-                "bottom": "自动将字幕翻译为你偏好的语言",
+                "caption": "字幕自动呈现",
+                "bottom": "按偏好自动打开对应语言字幕",
             },
         },
         "screenshot-3-autogen.png": {
