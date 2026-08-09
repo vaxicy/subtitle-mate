@@ -22,12 +22,6 @@
       padding: 20px 18px;
     }
     .wrap { text-align: center; }
-    .logo {
-      width: 44px; height: 44px;
-      border-radius: 10px;
-      margin: 0 auto 10px;
-      display: block;
-    }
     h1 {
       font-size: 17px;
       font-weight: 700;
@@ -79,7 +73,6 @@
 </head>
 <body>
   <div class="wrap">
-    <img id="logo" class="logo" alt="SubtitleMate" />
     <h1 id="title">Support SubtitleMate</h1>
     <div class="sub" id="subtitle">Your support keeps this extension free and ad-free.</div>
 
@@ -112,13 +105,15 @@
         },
       };
       const lang = (function () {
+        const params = new URLSearchParams(location.search);
+        const fromUrl = params.get('lang');
+        if (fromUrl === 'en' || fromUrl === 'zh') return fromUrl;
         const stored = localStorage.getItem('sm_uiLang');
         if (stored === 'en' || stored === 'zh') return stored;
         const nav = (navigator.language || 'en').toLowerCase();
         return nav.startsWith('zh') ? 'zh' : 'en';
       })();
       const t = I18N[lang];
-      document.getElementById('logo').src = chrome.runtime.getURL('icons/icon48.png');
       document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
       document.getElementById('title').textContent = t.title;
       document.getElementById('subtitle').textContent = t.subtitle;

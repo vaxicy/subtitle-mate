@@ -42,7 +42,6 @@
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
     $('lblAutoReload').textContent = i18n.autoReloadOnFail;
-    $('lblSupportDesc').textContent = i18n.supportDesc;
     $('lnkSupport').textContent = i18n.supportLink;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
@@ -100,7 +99,7 @@
 
     $('lnkSupport').addEventListener('click', (e) => {
       e.preventDefault();
-      window.open(chrome.runtime.getURL('support.html'), '_blank');
+      window.open(chrome.runtime.getURL('support.html') + '?lang=' + uiLang, '_blank');
     });
   }
 

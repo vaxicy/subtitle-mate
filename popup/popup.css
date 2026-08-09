@@ -162,20 +162,16 @@ body {
   border-top: 1px solid var(--border);
   text-align: center;
 }
-.support-desc {
-  font-size: 10px;
-  color: var(--secondary);
-  margin-bottom: 6px;
-  line-height: 1.35;
-}
 .support-link {
   display: inline-block;
-  font-size: 12px;
-  font-weight: 600;
-  color: #1A73E8;
+  font-size: 11px;
+  font-weight: 500;
+  color: #555555;
   text-decoration: none;
   cursor: pointer;
+  line-height: 1.4;
 }
 .support-link:hover {
+  color: #1F1F1F;
   text-decoration: underline;
 }
