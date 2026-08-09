@@ -54,10 +54,8 @@
       applyTriggered: 'Applying…',
       on: 'ON', off: 'OFF',
       saved: 'Saved',
-      supportTitle: 'Support the developer',
-      supportDesc: 'If SubtitleMate helps you, consider buying me a coffee.',
-      supportPaypal: 'PayPal',
-      supportWechat: 'WeChat',
+      supportDesc: 'If SubtitleMate helps you, consider supporting the developer.',
+      supportLink: '☕ Support the developer',
     },
     zh: {
       name: '字幕助手',
@@ -75,10 +73,8 @@
       applyTriggered: '正在应用…',
       on: '开', off: '关',
       saved: '已保存',
-      supportTitle: '支持开发者',
-      supportDesc: '如果 SubtitleMate 对你有帮助，欢迎请我喝杯咖啡。',
-      supportPaypal: 'PayPal',
-      supportWechat: '微信',
+      supportDesc: '如果 SubtitleMate 对你有帮助，欢迎支持开发者。',
+      supportLink: '☕ 支持开发者',
     },
   };
 

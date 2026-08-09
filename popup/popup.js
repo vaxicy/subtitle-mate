@@ -42,10 +42,8 @@
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
     $('lblAutoReload').textContent = i18n.autoReloadOnFail;
-    $('lblSupportTitle').textContent = i18n.supportTitle;
     $('lblSupportDesc').textContent = i18n.supportDesc;
-    $('btnPaypal').textContent = i18n.supportPaypal;
-    $('btnWechat').textContent = i18n.supportWechat;
+    $('lnkSupport').textContent = i18n.supportLink;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
     const toggle = $('toggleAuto');
@@ -100,9 +98,10 @@
       applyUI();
     });
 
-    const PAYPAL_URL = 'https://www.paypal.com/ncp/payment/6EPWW7KXXXA56';
-    $('btnPaypal').addEventListener('click', () => window.open(PAYPAL_URL, '_blank'));
-    $('btnWechat').addEventListener('click', () => $('wechatQr').classList.toggle('show'));
+    $('lnkSupport').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open(chrome.runtime.getURL('support.html'), '_blank');
+    });
   }
 
   async function init() {

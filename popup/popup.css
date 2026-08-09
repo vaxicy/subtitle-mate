@@ -160,60 +160,22 @@ body {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
-}
-.support-title {
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 3px;
+  text-align: center;
 }
 .support-desc {
   font-size: 10px;
   color: var(--secondary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   line-height: 1.35;
 }
-.support-actions {
-  display: flex;
-  gap: 8px;
-}
-.support-btn {
-  flex: 1;
-  padding: 7px 0;
+.support-link {
+  display: inline-block;
   font-size: 12px;
   font-weight: 600;
-  border: none;
-  border-radius: 8px;
+  color: #1A73E8;
+  text-decoration: none;
   cursor: pointer;
-  text-align: center;
 }
-.support-btn.paypal {
-  color: #fff;
-  background: #003087;
-}
-.support-btn.wechat-toggle {
-  color: #fff;
-  background: #07C160;
-}
-.wechat {
-  position: relative;
-  flex: 1;
-}
-.wechat-qr {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%) scale(0.95);
-  width: 120px;
-  height: auto;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  z-index: 20;
-}
-.wechat-qr.show {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(-50%) scale(1);
+.support-link:hover {
+  text-decoration: underline;
 }

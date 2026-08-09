@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Support SubtitleMate</title>
+  <style>
+    :root {
+      --primary: #E53935;
+      --bg: #FFFFFF;
+      --text: #1F1F1F;
+      --secondary: #757575;
+      --surface: #FFF5F5;
+      --border: #FFE0E0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      padding: 20px 18px;
+    }
+    .wrap { text-align: center; }
+    .logo {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      margin: 0 auto 10px;
+      display: block;
+    }
+    h1 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .sub {
+      font-size: 11px;
+      color: var(--secondary);
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+    .section-title {
+      font-size: 13px;
+      font-weight: 700;
+      margin: 18px 0 10px;
+    }
+    .qr {
+      width: 180px;
+      height: 180px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin: 0 auto;
+      display: block;
+    }
+    .qr-note {
+      font-size: 11px;
+      color: var(--secondary);
+      margin-top: 8px;
+    }
+    .paypal-btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 11px 28px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      background: #003087;
+      border-radius: 10px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .paypal-btn:hover { background: #001f5c; }
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <img id="logo" class="logo" alt="SubtitleMate" />
+    <h1 id="title">Support SubtitleMate</h1>
+    <div class="sub" id="subtitle">Your support keeps this extension free and ad-free.</div>
+
+    <div class="section-title" id="wechatTitle">WeChat</div>
+    <img class="qr" src="icons/wechat-reward.png" alt="WeChat reward QR code" />
+    <div class="qr-note" id="wechatNote">Scan with WeChat to send a reward.</div>
+
+    <div class="divider"></div>
+
+    <div class="section-title" id="paypalTitle">PayPal</div>
+    <a id="paypalBtn" class="paypal-btn" href="https://www.paypal.com/ncp/payment/6EPWW7KXXXA56" target="_blank" rel="noopener">Pay with PayPal</a>
+  </div>
+
+  <script>
+    (function () {
+      const I18N = {
+        en: {
+          title: 'Support SubtitleMate',
+          subtitle: 'Your support keeps this extension free and ad-free.',
+          wechatTitle: 'WeChat',
+          wechatNote: 'Scan with WeChat to send a reward.',
+          paypalTitle: 'PayPal',
+        },
+        zh: {
+          title: '支持 SubtitleMate',
+          subtitle: '你的支持让这个扩展保持免费、无广告。',
+          wechatTitle: '微信',
+          wechatNote: '用微信扫一扫，赞赏开发者。',
+          paypalTitle: 'PayPal',
+        },
+      };
+      const lang = (function () {
+        const stored = localStorage.getItem('sm_uiLang');
+        if (stored === 'en' || stored === 'zh') return stored;
+        const nav = (navigator.language || 'en').toLowerCase();
+        return nav.startsWith('zh') ? 'zh' : 'en';
+      })();
+      const t = I18N[lang];
+      document.getElementById('logo').src = chrome.runtime.getURL('icons/icon48.png');
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+      document.getElementById('title').textContent = t.title;
+      document.getElementById('subtitle').textContent = t.subtitle;
+      document.getElementById('wechatTitle').textContent = t.wechatTitle;
+      document.getElementById('wechatNote').textContent = t.wechatNote;
+      document.getElementById('paypalTitle').textContent = t.paypalTitle;
+    })();
+  </script>
+</body>
+</html>
