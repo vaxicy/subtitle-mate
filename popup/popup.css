@@ -113,27 +113,6 @@ body {
 }
 
 .checks { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-.apply-row { margin-top: 4px; }
-
-/* Footer "Apply" entry: a small text button with an icon, not a full-width block. */
-.apply-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--primary);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.apply-link:hover { background: var(--border); }
-.apply-link:active { transform: translateY(1px); }
-.apply-link.loading { color: var(--secondary); cursor: default; }
-.apply-icon { flex: 0 0 auto; }
 .check {
   display: flex;
   align-items: center;

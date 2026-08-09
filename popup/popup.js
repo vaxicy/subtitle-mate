@@ -42,8 +42,6 @@
     $('lblTargetLang').textContent = i18n.targetLang;
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
-    $('btnApplyText').textContent = i18n.applyNow;
-    $('btnApply').title = i18n.applySettings;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
     const toggle = $('toggleAuto');
@@ -92,23 +90,6 @@
       uiLang = uiLang === 'en' ? 'zh' : 'en';
       setCurrentUiLang(uiLang);
       applyUI();
-    });
-
-    $('btnApply').addEventListener('click', () => {
-      const btn = $('btnApply');
-      if (btn.classList.contains('loading')) return;
-      btn.classList.add('loading');
-      const original = I18N[uiLang].applyNow;
-      $('btnApplyText').textContent = t('applyTriggered');
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tab = tabs && tabs[0];
-        if (!tab || !tab.id) return;
-        chrome.tabs.sendMessage(tab.id, { type: 'SM_APPLY_SUBTITLES' }).catch(() => {});
-      });
-      setTimeout(() => {
-        $('btnApplyText').textContent = original;
-        btn.classList.remove('loading');
-      }, 1400);
     });
   }
 
