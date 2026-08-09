@@ -111,10 +111,6 @@
     return null;
   }
 
-  function isRealPlayer(p) {
-    return isValidPlayer(p) && !(p instanceof HTMLElement);
-  }
-
   // Returns true if the player object can accept the captions API directly,
   // regardless of whether it is also a DOM element (some builds expose
   // getOption/setOption on the #movie_player element itself).
@@ -135,231 +131,11 @@
     return null;
   }
 
-  function normalizeTrack(raw) {
-    if (!raw) return null;
-    const nameObj = raw.name || raw.displayName;
-    const nameText = typeof nameObj === 'string' ? nameObj : (nameObj && nameObj.simpleText) || '';
-    return {
-      languageCode: raw.languageCode || raw.langCode || raw.code || '',
-      vssId: raw.vssId || raw.vss_id || '',
-      kind: raw.kind || '',
-      name: { simpleText: nameText },
-      displayName: nameText,
-      baseUrl: raw.baseUrl || raw.base_url || '',
-      isTranslatable: !!raw.isTranslatable,
-      translationLanguage: raw.translationLanguage || null,
-    };
-  }
-
-  function toArray(x) {
-    if (Array.isArray(x)) return x;
-    if (x && typeof x.length === 'number') {
-      try { return Array.prototype.slice.call(x); } catch (_) {}
-    }
-    return [];
-  }
-
-  function getTracklist(player) {
-    try {
-      const raw = player.getOption('captions', 'tracklist');
-      const list = toArray(raw);
-      if (list.length) return list.map(normalizeTrack).filter(Boolean);
-    } catch (e) {
-      console.log('[SubtitleMate] getOption(captions,tracklist) threw -> ' + (e && e.message));
-    }
-    return [];
-  }
-
-  function getTracklistFromPlayerResponse(player) {
-    try {
-      let response = null;
-      if (typeof player.getPlayerResponse === 'function') {
-        response = player.getPlayerResponse();
-      }
-      if (!response && window.ytInitialPlayerResponse) {
-        response = window.ytInitialPlayerResponse;
-      }
-      if (!response && window.ytplayer && window.ytplayer.config && window.ytplayer.config.args) {
-        response = window.ytplayer.config.args.raw_player_response;
-      }
-      const tracks = response && response.captions && response.captions.captionTracks;
-      const list = toArray(tracks);
-      if (list.length) {
-        console.log('[SubtitleMate] tracklist from player response: ' + list.length);
-        return list.map(normalizeTrack).filter(Boolean);
-      }
-    } catch (e) {
-      console.log('[SubtitleMate] getTracklistFromPlayerResponse threw -> ' + (e && e.message));
-    }
-    return [];
-  }
-
-  async function waitForTracklist(player, maxMs = 10000) {
-    const deadline = Date.now() + maxMs;
-    while (Date.now() < deadline) {
-      const fromPlayer = getTracklist(player);
-      if (fromPlayer.length) {
-        console.log('[SubtitleMate] waitForTracklist: got ' + fromPlayer.length + ' from player API');
-        return fromPlayer;
-      }
-      const fromResponse = getTracklistFromPlayerResponse(player);
-      if (fromResponse.length) {
-        console.log('[SubtitleMate] waitForTracklist: got ' + fromResponse.length + ' from player response');
-        return fromResponse;
-      }
-      await sleep(400);
-    }
-    console.log('[SubtitleMate] waitForTracklist: timeout');
-    return [];
-  }
-
-  function trackId(t) {
-    return t.languageCode || t.langCode || t.code;
-  }
-
-  function pickBaseTracks(list) {
-    if (!list || !list.length) return [];
-
-    const score = (t) => {
-      const isTranslation = !!t.translationLanguage ||
-        /翻译|translat/i.test(t.displayName || '');
-      let s = isTranslation ? -100 : 0;
-      const lc = (t.languageCode || '').toLowerCase();
-      if (lc === 'en') s += 50;
-      if (t.kind === 'asr' || /auto|asr/i.test(t.displayName || '')) s += 20;
-      return s;
-    };
-
-    return list
-      .filter((t) => !t.translationLanguage)
-      .slice()
-      .sort((a, b) => score(b) - score(a));
-  }
-
-  function loadCaptionsModule(player) {
-    if (!player) return;
-    try {
-      if (typeof player.loadModule === 'function') player.loadModule('captions');
-    } catch (_) {}
-    try {
-      if (typeof player.loadModule === 'function') player.loadModule('captionsUI');
-    } catch (_) {}
-  }
-
-  function enableCaptionsApi(player) {
-    if (!player) return;
-    loadCaptionsModule(player);
-    try {
-      if (typeof player.updateSubtitleUserConfig === 'function') {
-        player.updateSubtitleUserConfig({ kind: 'PLAYBACK', enable: true });
-      }
-    } catch (_) {}
-    try {
-      player.setOption('captions', 'reload', true);
-    } catch (_) {}
-  }
-
-  function verifyCaptionsOn(player) {
-    try {
-      const cur = player.getOption('captions', 'track');
-      if (cur) return true;
-    } catch (_) {}
-    return document.querySelectorAll('.ytp-caption-segment').length > 0;
-  }
-
   function readTranslationLanguage(cur) {
     if (!cur || !cur.translationLanguage) return '';
     const tl = cur.translationLanguage;
     if (typeof tl === 'string') return tl;
     return tl.languageCode || tl.langCode || tl.code || '';
-  }
-
-  function verifyTranslateApplied(player, targetCode) {
-    try {
-      const cur = player.getOption('captions', 'track');
-      const got = readTranslationLanguage(cur).toLowerCase();
-      const segments = document.querySelectorAll('.ytp-caption-segment').length > 0;
-      console.log('[SubtitleMate] verify: track.lang=' + (cur && (cur.languageCode || cur.langCode || '')) +
-        ' translationLanguage=' + got + ' want=' + targetCode + ' segments=' + segments);
-      if (got === targetCode.toLowerCase() && segments) return true;
-    } catch (e) {
-      console.log('[SubtitleMate] verify: getOption threw -> ' + (e && e.message));
-    }
-    return false;
-  }
-
-  async function applyTranslateViaApi(player, targetCode) {
-    const allTracks = await waitForTracklist(player, 10000);
-    const bases = pickBaseTracks(allTracks);
-    if (!bases.length) {
-      console.log('[SubtitleMate] translate: no base track available after wait. raw count=' + allTracks.length);
-      return false;
-    }
-
-    console.log('[SubtitleMate] translate: tracklist = ' +
-      JSON.stringify(allTracks.map((t) => ({
-        lc: t.languageCode,
-        kind: t.kind,
-        name: t.displayName,
-        isTl: !!t.translationLanguage,
-      }))));
-
-    for (const base of bases) {
-      try {
-        const id = trackId(base);
-        if (!id) continue;
-        // YouTube expects translationLanguage as a string code on some builds,
-        // and as an object on others. Try both shapes.
-        const selectObj = { ...base, translationLanguage: { languageCode: targetCode } };
-        const selectStr = { ...base, translationLanguage: targetCode };
-        console.log('[SubtitleMate] translate: setOption track = ' +
-          JSON.stringify({ lc: id, kind: base.kind, target: targetCode }));
-        player.setOption('captions', 'track', selectObj);
-        await sleep(400);
-        if (verifyTranslateApplied(player, targetCode)) {
-          console.log('[SubtitleMate] translate: confirmed (obj) base=' + id + ' -> ' + targetCode);
-          return true;
-        }
-        player.setOption('captions', 'track', selectStr);
-        await sleep(400);
-        if (verifyTranslateApplied(player, targetCode)) {
-          console.log('[SubtitleMate] translate: confirmed (str) base=' + id + ' -> ' + targetCode);
-          return true;
-        }
-        console.log('[SubtitleMate] translate: base=' + id + ' did not apply, trying next');
-      } catch (e) {
-        console.log('[SubtitleMate] translate: setOption threw -> ' + (e && e.message));
-      }
-    }
-    return false;
-  }
-
-  async function applyAutoGeneratedViaApi(player) {
-    const allTracks = await waitForTracklist(player, 10000);
-    const bases = pickBaseTracks(allTracks);
-    const en = bases.find((b) => {
-      const lc = (trackId(b) || '').toLowerCase();
-      return lc === 'en' || /english/i.test(b.displayName || '');
-    }) || bases[0];
-    if (!en) {
-      console.log('[SubtitleMate] auto-generated: no base track after wait. raw count=' + allTracks.length);
-      return false;
-    }
-    try {
-      const id = trackId(en);
-      if (!id) return false;
-      // Use the full original track object to keep required fields.
-      player.setOption('captions', 'track', { ...en });
-      await sleep(400);
-      if (verifyCaptionsOn(player)) return true;
-      // Some builds also need an explicit enable flag.
-      try { player.setOption('captions', 'enable', true); } catch (_) {}
-      await sleep(300);
-      return verifyCaptionsOn(player);
-    } catch (e) {
-      console.log('[SubtitleMate] auto-generated: setOption threw -> ' + (e && e.message));
-      return false;
-    }
   }
 
   function clickCcButtonIfPresent() {
@@ -479,7 +255,6 @@
     if (!item) {
       console.log('[SubtitleMate] ui: menu item not found. patterns=' + JSON.stringify(patterns) +
         ' labels=' + Array.from(panel.querySelectorAll('.ytp-menuitem-label')).map((el) => el.textContent).join(' | '));
-      closeSettingsPanel();
       return false;
     }
     console.log('[SubtitleMate] ui: clicking menu item: ' +
@@ -556,38 +331,121 @@
   }
 
   async function applyViaUi(mode, targetLang) {
-    const ok = await openSubtitlesMenuWithRetry(3);
-    if (!ok) {
+    const opened = await openSubtitlesMenuWithRetry(3);
+    if (!opened) {
       // If settings menu didn't open, try direct CC button as last resort.
       if (clickCcButtonIfPresent()) {
         await sleep(1000);
+        const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
+        return on;
+      }
+      return false;
+    }
+
+    try {
+      const panel = getSettingsPanel();
+
+      // If the current selected item already matches target, do not click.
+      if (panelHasSelectedMatch(panel, mode, targetLang)) {
+        console.log('[SubtitleMate] ui: target already selected in menu, skip');
         return document.querySelectorAll('.ytp-caption-segment').length > 0;
       }
-      return false;
-    }
 
-    if (mode === 'auto-generated') {
-      const patterns = ['english auto-generated', 'english auto generated', 'english', '英语自动生成', '英语', '英文'];
-      if (await selectSubtitlesMenuItem(patterns, 3000)) {
-        await sleep(800);
-        const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
-        console.log('[SubtitleMate] ui: auto-generated result segments=' + on);
-        return on;
+      if (mode === 'auto-generated') {
+        const patterns = ['english auto-generated', 'english auto generated', 'english', '英语自动生成', '英语', '英文'];
+        if (await selectSubtitlesMenuItem(patterns, 3000)) {
+          await sleep(800);
+          const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
+          console.log('[SubtitleMate] ui: auto-generated result segments=' + on);
+          return on;
+        }
+        return false;
+      }
+
+      // translate mode: settings -> subtitles -> auto-translate -> target language
+      if (await selectSubtitlesMenuItem(['auto-translate', 'auto translate', '自动翻译', '翻译'], 3000)) {
+        // Re-open menu context is preserved; re-fetch panel and check again.
+        const panel2 = getSettingsPanel();
+        if (panelHasSelectedMatch(panel2, 'translate', targetLang)) {
+          console.log('[SubtitleMate] ui: target already selected after auto-translate, skip');
+          return document.querySelectorAll('.ytp-caption-segment').length > 0;
+        }
+        const patterns = targetLanguageLabels(targetLang);
+        if (await selectSubtitlesMenuItem(patterns, 3000)) {
+          await sleep(800);
+          const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
+          console.log('[SubtitleMate] ui: translate result segments=' + on);
+          return on;
+        }
       }
       return false;
+    } finally {
+      // Always leave the settings panel closed for a clean state.
+      closeSettingsPanel();
     }
+  }
 
-    // translate mode: settings -> subtitles -> auto-translate -> target language
-    if (await selectSubtitlesMenuItem(['auto-translate', 'auto translate', '自动翻译', '翻译'], 3000)) {
-      const patterns = targetLanguageLabels(targetLang);
-      if (await selectSubtitlesMenuItem(patterns, 3000)) {
-        await sleep(800);
-        const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
-        console.log('[SubtitleMate] ui: translate result segments=' + on);
-        return on;
+  // ---------- read current state (early stop) ----------
+
+  // Read the currently selected track + translation language via the API
+  // (used only to short-circuit when YouTube already has the desired state).
+  function readCurrentState() {
+    const player = getPlayer();
+    if (!player || !canUseApi(player)) return null;
+    try {
+      const cur = player.getOption('captions', 'track');
+      if (!cur) return { hasTrack: false };
+      return {
+        hasTrack: true,
+        baseLang: (cur.languageCode || cur.langCode || cur.code || '').toLowerCase(),
+        translationLanguage: readTranslationLanguage(cur).toLowerCase(),
+        isTranslation: !!(cur.translationLanguage),
+      };
+    } catch (e) {
+      console.log('[SubtitleMate] readCurrentState threw -> ' + (e && e.message));
+      return null;
+    }
+  }
+
+  // Scan the currently open subtitles panel for a selected (aria-checked) item
+  // whose label matches the target language / mode. Used to avoid re-clicking.
+  function panelHasSelectedMatch(panel, mode, targetLang) {
+    if (!panel) return false;
+    const items = Array.from(panel.querySelectorAll('.ytp-menuitem'));
+    const want = (mode === 'translate') ? targetLanguageLabels(targetLang) : null;
+    for (const item of items) {
+      const checked = item.getAttribute('aria-checked') === 'true' ||
+                      item.classList.contains('ytp-menuitem-active') ||
+                      item.classList.contains('ytp-menuitem-checked');
+      if (!checked) continue;
+      const labelEl = item.querySelector('.ytp-menuitem-label') || item;
+      const text = normalizeMenuText(labelEl.textContent);
+      if (mode === 'auto-generated') {
+        if (/english/.test(text) && /auto|asr/.test(text)) return true;
+      } else if (want) {
+        const exact = (want.exact || []).map(normalizeMenuText);
+        const fallback = (want.fallback || []).map(normalizeMenuText);
+        const exclude = (want.exclude || []).map(normalizeMenuText);
+        if (exclude.some((e) => text.includes(e))) continue;
+        if (exact.some((p) => text.includes(p)) || fallback.some((p) => text.includes(p))) {
+          return true;
+        }
       }
     }
     return false;
+  }
+
+  // Verify via DOM that the requested state is actually on screen.
+  function isAlreadySatisfiedDom(mode, targetLang) {
+    if (document.querySelectorAll('.ytp-caption-segment').length === 0) return false;
+    // We can't read the translation language purely from DOM; open the panel
+    // only to check is too costly, so rely on a quick API read instead.
+    const st = readCurrentState();
+    if (!st || !st.hasTrack) return false;
+    if (mode === 'auto-generated') {
+      return /english/.test(st.baseLang) && !st.isTranslation;
+    }
+    return st.translationLanguage === (targetLang || 'zh-CN').toLowerCase();
   }
 
   // ---------- main handler ----------
@@ -596,35 +454,25 @@
     const mode = payload.mode;
     const targetLang = payload.targetLang || 'zh-CN';
 
-    // Try real player API first. A DOM-element player can still expose the
-    // captions API in some builds, so we attempt the API whenever the object
-    // is valid rather than hard-skipping HTMLElement instances.
-    const player = getPlayer() || (await waitForPlayer(15000));
-    if (player && canUseApi(player)) {
-      enableCaptionsApi(player);
-
-      if (mode === 'auto-generated') {
-        const ok = await applyAutoGeneratedViaApi(player);
-        if (ok) return { ok: true, info: 'English (auto-generated) enabled via API' };
-      } else {
-        const ok = await applyTranslateViaApi(player, targetLang);
-        if (ok) return { ok: true, info: 'translated to ' + targetLang + ' via API' };
-      }
-      console.log('[SubtitleMate] API approach failed, trying UI fallback');
-    } else {
-      console.log('[SubtitleMate] player not found after wait, trying UI fallback');
+    // 0) Early stop: if YouTube already satisfies the target, do nothing.
+    if (isAlreadySatisfiedDom(mode, targetLang)) {
+      console.log('[SubtitleMate] target already satisfied, skip applying');
+      return { ok: true, info: 'already satisfied, no action needed' };
     }
 
-    // Pure DOM-based fallback: simulate settings-button clicks.
+    // Pure UI-based approach: simulate settings-button clicks. This is the
+    // most stable method across YouTube builds (API paths change often).
     const uiOk = await applyViaUi(mode, targetLang);
     if (uiOk) {
+      // Re-check: if target was already selected, the panel may have been
+      // closed without changes but captions are still on — report success.
       return {
         ok: true,
         info: (mode === 'auto-generated' ? 'English (auto-generated)' : 'translated to ' + targetLang) + ' via UI',
       };
     }
 
-    return { ok: false, info: 'all approaches failed (API + UI)' };
+    return { ok: false, info: 'UI approach failed' };
   }
 
   window.addEventListener('message', async (event) => {
