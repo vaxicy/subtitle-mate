@@ -34,6 +34,18 @@
     }
   }
 
+  function fillRateOptions(select, selected) {
+    select.innerHTML = '';
+    const rates = window.SM.PLAYBACK_RATES || [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+    for (const r of rates) {
+      const opt = document.createElement('option');
+      opt.value = String(r);
+      opt.textContent = r + 'x';
+      if (r === selected) opt.selected = true;
+      select.appendChild(opt);
+    }
+  }
+
   function applyUI() {
     const i18n = I18N[uiLang];
     $('lblAutoCaptions').textContent = i18n.autoCaptions;
@@ -42,6 +54,8 @@
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
     $('lblAutoReload').textContent = i18n.autoReloadOnFail;
+    $('lblAutoSpeed').textContent = i18n.autoPlaybackSpeed;
+    $('lblSpeed').textContent = i18n.playbackSpeed;
     $('lnkSupport').textContent = i18n.supportLink;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
@@ -57,6 +71,11 @@
     $('lblTargetLangHint').style.visibility = translateMode ? 'visible' : 'hidden';
     $('chkAutoYt').checked = settings[STORAGE_KEYS.AUTO_ON_YT];
     $('chkAutoReload').checked = settings[STORAGE_KEYS.AUTO_RELOAD_ON_FAIL];
+
+    // Playback speed controls.
+    $('chkAutoSpeed').checked = settings[STORAGE_KEYS.AUTO_PLAYBACK_SPEED];
+    fillRateOptions($('playbackRate'), Number(settings[STORAGE_KEYS.PLAYBACK_RATE]));
+    $('speedBlock').classList.toggle('disabled', !settings[STORAGE_KEYS.AUTO_PLAYBACK_SPEED]);
   }
 
   async function save(patch) {
@@ -90,6 +109,14 @@
 
     $('chkAutoReload').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.AUTO_RELOAD_ON_FAIL]: e.target.checked }));
+
+    $('chkAutoSpeed').addEventListener('change', (e) => {
+      save({ [STORAGE_KEYS.AUTO_PLAYBACK_SPEED]: e.target.checked });
+      applyUI();
+    });
+
+    $('playbackRate').addEventListener('change', (e) =>
+      save({ [STORAGE_KEYS.PLAYBACK_RATE]: Number(e.target.value) }));
 
     $('langSwitch').addEventListener('click', () => {
       uiLang = uiLang === 'en' ? 'zh' : 'en';

@@ -8,7 +8,12 @@
     TARGET_LANG: 'sm_targetLang',
     AUTO_ON_YT: 'sm_autoOnYt',
     AUTO_RELOAD_ON_FAIL: 'sm_autoReloadOnFail',
+    AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
+    PLAYBACK_RATE: 'sm_playbackRate',
   };
+
+  // Allowed playback rate values (matches YouTube's speed menu).
+  const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
   // Caption modes:
   //  'translate'      -> turn captions on and auto-translate into TARGET_LANG
@@ -48,6 +53,8 @@
       targetLangHint: 'Used when caption mode is "Auto-translate"',
       autoOnYt: 'Enable automatically on YouTube',
       autoReloadOnFail: 'Auto-reload page if it fails',
+      autoPlaybackSpeed: 'Auto-set playback speed',
+      playbackSpeed: 'Playback speed',
       settings: 'Settings',
       applySettings: 'Apply to current video',
       applyNow: 'Apply',
@@ -66,6 +73,8 @@
       targetLangHint: '仅在「自动翻译」模式下生效',
       autoOnYt: '在 YouTube 上自动启用',
       autoReloadOnFail: '应用失败时自动刷新页面',
+      autoPlaybackSpeed: '自动设置播放速度',
+      playbackSpeed: '播放速度',
       settings: '设置',
       applySettings: '应用到当前视频',
       applyNow: '应用',

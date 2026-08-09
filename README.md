@@ -11,11 +11,11 @@
 </p>
 
 <p align="center">
-  Automatically enable YouTube subtitles and translate them into your preferred language.
+  Automatically enable YouTube subtitles, translate them into your preferred language, and set a custom playback speed.
 </p>
 
 <p align="center">
-  自动开启 YouTube 字幕，并将其翻译成你偏好的语言。
+  自动开启 YouTube 字幕、翻译成你偏好的语言，并自动设置自定义播放速度。
 </p>
 
 ---
@@ -24,6 +24,7 @@
 
 - **Auto captions** — subtitles are turned on automatically when you open a YouTube video.
 - **Auto translation** — translate captions into the language you choose in the popup.
+- **Auto playback speed** — snap playback speed to your preset rate on every video.
 - **Source & target language** — select the original subtitle language and the language you want to read.
 - **Remember preference** — SubtitleMate remembers your settings and applies them on every visit.
 - **YouTube only** — lightweight and focused on YouTube watch pages.
@@ -32,6 +33,7 @@
 
 - **自动字幕** — 打开 YouTube 视频时自动开启字幕。
 - **自动翻译** — 将字幕翻译成你在弹窗中选择的语言。
+- **自动播放速度** — 每个视频自动套用你预设的播放速度。
 - **源语言与目标语言** — 选择原始字幕语言和你想阅读的语言。
 - **记住偏好** — SubtitleMate 会记住你的设置，每次访问自动应用。
 - **仅用于 YouTube** — 轻量、专注于 YouTube 播放页。
@@ -43,14 +45,14 @@
 1. Install SubtitleMate from the Chrome Web Store.
 2. Open any YouTube video.
 3. Click the SubtitleMate icon in the toolbar.
-4. Turn on **Auto Captions**, choose your languages, and enjoy.
+4. Turn on **Auto Captions**, choose your languages and playback speed, and enjoy.
 
 ## 使用方法
 
 1. 从 Chrome Web Store 安装 SubtitleMate。
 2. 打开任意 YouTube 视频。
 3. 点击工具栏中的 SubtitleMate 图标。
-4. 开启**自动字幕**，选择语言，即可观看。
+4. 开启**自动字幕**，选择语言与播放速度，即可观看。
 
 ---
 

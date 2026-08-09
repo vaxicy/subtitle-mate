@@ -102,6 +102,10 @@ body {
   cursor: not-allowed;
   background-color: #FAFAFA;
 }
+.block.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
 .select {
   width: 100%;
   padding: 9px 12px;

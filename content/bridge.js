@@ -475,12 +475,68 @@
     return { ok: false, info: 'UI approach failed' };
   }
 
+  // Set the video playback rate. Tries the player API first (so the YouTube
+  // speed menu stays in sync), then falls back to the raw <video> element.
+  async function handleSetPlaybackRate(payload) {
+    const rate = Number(payload && payload.rate);
+    if (!rate || rate <= 0) {
+      return { ok: false, info: 'invalid rate: ' + rate };
+    }
+
+    const video = getVideo();
+    if (!video) {
+      return { ok: false, info: 'no <video> element found' };
+    }
+
+    // Primary: drive through the player API when available so YouTube's own
+    // speed menu reflects the change.
+    const player = getPlayer();
+    if (player && canUseApi(player)) {
+      try {
+        if (typeof player.setPlaybackRate === 'function') {
+          player.setPlaybackRate(rate);
+        }
+      } catch (e) {
+        console.log('[SubtitleMate] setPlaybackRate via API threw -> ' + (e && e.message));
+      }
+    }
+
+    // Always also set it directly on the element; this is what actually
+    // changes playback and works even when the API path is unavailable.
+    try {
+      video.playbackRate = rate;
+    } catch (e) {
+      return { ok: false, info: 'failed to set video.playbackRate: ' + (e && e.message) };
+    }
+
+    // Wait a tick and read back to verify.
+    await sleep(150);
+    const actual = video.playbackRate;
+    const ok = Math.abs(actual - rate) < 0.01;
+    console.log('[SubtitleMate] playbackRate set -> requested=' + rate + ' actual=' + actual + ' ok=' + ok);
+    return {
+      ok,
+      info: ok ? ('playbackRate set to ' + rate) : ('requested ' + rate + ' but actual ' + actual),
+    };
+  }
+
   window.addEventListener('message', async (event) => {
     const data = event.data;
     if (!data || data.source !== 'subtitlemate-content') return;
 
     if (data.type === 'PING') {
       window.postMessage({ source: 'subtitlemate-bridge', type: 'PONG', id: data.id }, '*');
+      return;
+    }
+
+    if (data.type === 'SET_PLAYBACK_RATE') {
+      const result = await handleSetPlaybackRate(data.payload || {});
+      window.postMessage({
+        source: 'subtitlemate-bridge',
+        type: 'RESULT',
+        id: data.id,
+        payload: result,
+      }, '*');
       return;
     }
 

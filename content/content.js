@@ -16,6 +16,8 @@
     TARGET_LANG: 'sm_targetLang',
     AUTO_ON_YT: 'sm_autoOnYt',
     AUTO_RELOAD_ON_FAIL: 'sm_autoReloadOnFail',
+    AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
+    PLAYBACK_RATE: 'sm_playbackRate',
   };
 
   const MODE = {
@@ -37,6 +39,8 @@
       [K.TARGET_LANG]: 'zh-CN',
       [K.AUTO_ON_YT]: true,
       [K.AUTO_RELOAD_ON_FAIL]: false,
+      [K.AUTO_PLAYBACK_SPEED]: false,
+      [K.PLAYBACK_RATE]: 1.5,
     };
     settings = await chrome.storage.sync.get(defs);
   }
@@ -123,6 +127,13 @@
       console.log('[SubtitleMate] success: ' + result.info);
     } else {
       console.log('[SubtitleMate] failed: ' + (result && result.info || 'unknown'));
+    }
+
+    // Auto-set playback speed (independent of caption success).
+    if (settings && settings[K.AUTO_PLAYBACK_SPEED]) {
+      const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
+      const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
+      console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));
     }
   }
 

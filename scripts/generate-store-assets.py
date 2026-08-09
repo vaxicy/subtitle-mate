@@ -142,8 +142,8 @@ def draw_promo(w, h, filepath):
     # Right side: headline + CTA
     rx = panel_w + int(48*scale)
     hy = int(80*scale)
-    headline_en = "Auto-enable captions"
-    headline_zh = "自动开启字幕"
+    headline_en = "Captions + custom speed"
+    headline_zh = "字幕 + 自定义倍速"
     if is_small:
         d.text((rx, hy), headline_en, font=font(int(16*scale*(1400/440)), bold=True), fill=TEXT)
         d.text((rx, hy + int(22*scale*(1400/440))), headline_zh, font=font(int(13*scale*(1400/440)), cjk=True), fill=SECONDARY)
@@ -157,8 +157,8 @@ def draw_promo(w, h, filepath):
     else:
         d.text((rx, hy), headline_en, font=font(int(26*scale), bold=True), fill=TEXT)
         d.text((rx, hy + int(34*scale)), headline_zh, font=font(int(20*scale), cjk=True), fill=SECONDARY)
-        sub_en = "Set it once, captions work on every video."
-        sub_zh = "一次设置，每部视频自动出字幕。"
+        sub_en = "Set it once — captions and playback speed on every video."
+        sub_zh = "一次设置，每部视频自动出字幕、自动调倍速。"
         sy = hy + int(78*scale)
         d.text((rx, sy), sub_en, font=font(int(15*scale)), fill=SECONDARY)
         d.text((rx, sy + int(22*scale)), sub_zh, font=font(int(15*scale), cjk=True), fill=SECONDARY)
@@ -200,11 +200,13 @@ def draw_popup_mock(lang):
     y += int(6 * scale)           # margin
     y += int(70 * scale)          # target lang block
     y += int(2 * scale)           # margin
-    y += int(38 * scale)          # checks
+    y += int(58 * scale)          # checks (3 items)
+    y += int(8 * scale)           # margin
+    y += int(40 * scale)          # speed block
     y += int(10 * scale)          # top margin before support
     y += int(10 * scale)          # border padding
     y += int(16 * scale)          # support link
-    y += int(10 * scale)          # bottom padding
+    y += int(14 * scale)          # bottom padding
     card_h = y
 
     img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
@@ -277,6 +279,7 @@ def draw_popup_mock(lang):
     check_items = [
         "Enable automatically on YouTube" if en else "在 YouTube 上自动启用",
         "Auto-reload page if it fails" if en else "应用失败时自动刷新页面",
+        "Auto-set playback speed" if en else "自动设置播放速度",
     ]
     for c in check_items:
         d.rounded_rectangle([inner_x, y, inner_x + int(16*scale), y + int(16*scale)], int(3*scale), fill=PRIMARY)
@@ -284,6 +287,19 @@ def draw_popup_mock(lang):
         d.line([(inner_x+int(8*scale), y+int(12*scale)), (inner_x+int(13*scale), y+int(5*scale))], fill=WHITE, width=max(1, int(2*scale)))
         d.text((inner_x + int(24*scale), y - int(2*scale)), c, font=font(int(12*scale), cjk=not en), fill=TEXT)
         y += int(19 * scale)
+    y += int(8 * scale)
+
+    # speed block
+    d.text((inner_x, y), "Playback speed" if en else "播放速度",
+           font=font(int(11*scale), cjk=not en), fill=SECONDARY)
+    y += int(20 * scale)
+    rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(38*scale)], int(8*scale), WHITE)
+    d.rectangle([inner_x, y, inner_x + inner_w, y + int(38*scale)], outline=BORDER, width=1)
+    sp_text = "1.5x" if en else "1.5 倍速"
+    d.text((inner_x + int(10*scale), y + int(10*scale)), sp_text,
+           font=font(int(13*scale), cjk=not en), fill=TEXT)
+    d.polygon([(cx-r, cy-r+1), (cx, cy+r+1), (cx+r, cy-r+1)], fill=SECONDARY)
+    y += int(38 * scale)
 
     # support
     y += int(10 * scale)
@@ -329,6 +345,17 @@ def draw_caption_bar(d, stage, lang, caption_text):
     draw_center(d, W//2, cb_y + cb_h//2, caption_text, font(17, cjk=(lang=='zh')), WHITE)
 
 
+def draw_speed_badge(d, stage, lang):
+    """Draw a YouTube-style playback speed badge in the video stage."""
+    W = d._image.width
+    bx = stage[2] - int(120)
+    by = stage[1] + int(20)
+    bw, bh = int(96), int(34)
+    d.rounded_rectangle([bx, by, bx + bw, by + bh], int(8), fill=(0, 0, 0))
+    speed_text = "1.5x" if lang == 'en' else "1.5 倍速"
+    draw_center(d, bx + bw/2, by + bh/2, speed_text, font(16, cjk=(lang=='zh')), WHITE)
+
+
 def gen_screenshots():
     scenes = {
         "screenshot-1-browser.png": {
@@ -361,6 +388,16 @@ def gen_screenshots():
                 "bottom": "需要时直接启用自动生成字幕",
             },
         },
+        "screenshot-4-speed.png": {
+            "en": {
+                "caption": "Playback speed snaps to your preset on every video",
+                "bottom": "Auto-set a custom playback speed once, applied to all videos",
+            },
+            "zh": {
+                "caption": "每部视频自动套用你预设的播放速度",
+                "bottom": "一次设置自定义倍速，所有视频自动生效",
+            },
+        },
     }
     W, H = 1280, 800
     for lang in ("en", "zh"):
@@ -372,6 +409,8 @@ def gen_screenshots():
             stage = draw_browser_stage(d, W, H)
             t = texts[lang]
             draw_caption_bar(d, stage, lang, t["caption"])
+            if fname == "screenshot-4-speed.png":
+                draw_speed_badge(d, stage, lang)
 
             # Popup mock floating bottom-right
             popup = draw_popup_mock(lang)
