@@ -18,13 +18,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.card { padding: 8px; }
+.card { padding: 10px; }
 
 .header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .logo {
@@ -49,7 +49,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: 9px 12px;
   background: var(--surface);
   border-radius: 10px;
   margin-bottom: 6px;
@@ -104,7 +104,7 @@ body {
 }
 .select {
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   font-size: 13px;
   color: var(--text);
   background: var(--bg);
@@ -117,7 +117,7 @@ body {
   cursor: pointer;
 }
 
-.checks { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.checks { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
 .check {
   display: flex;
   align-items: center;
@@ -150,8 +150,70 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 3px 7px;
+  padding: 4px 8px;
   cursor: pointer;
   flex: 0 0 auto;
 }
 .lang-switch:hover { color: var(--primary); }
+
+.support {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.support-title {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.support-desc {
+  font-size: 10px;
+  color: var(--secondary);
+  margin-bottom: 8px;
+  line-height: 1.35;
+}
+.support-actions {
+  display: flex;
+  gap: 8px;
+}
+.support-btn {
+  flex: 1;
+  padding: 7px 0;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+}
+.support-btn.paypal {
+  color: #fff;
+  background: #003087;
+}
+.support-btn.wechat-toggle {
+  color: #fff;
+  background: #07C160;
+}
+.wechat {
+  position: relative;
+  flex: 1;
+}
+.wechat-qr {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%) scale(0.95);
+  width: 120px;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 20;
+}
+.wechat-qr.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) scale(1);
+}

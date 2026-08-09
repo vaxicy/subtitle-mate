@@ -42,6 +42,10 @@
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
     $('lblAutoReload').textContent = i18n.autoReloadOnFail;
+    $('lblSupportTitle').textContent = i18n.supportTitle;
+    $('lblSupportDesc').textContent = i18n.supportDesc;
+    $('btnPaypal').textContent = i18n.supportPaypal;
+    $('btnWechat').textContent = i18n.supportWechat;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
     const toggle = $('toggleAuto');
@@ -95,6 +99,10 @@
       setCurrentUiLang(uiLang);
       applyUI();
     });
+
+    const PAYPAL_URL = 'https://www.paypal.com/ncp/payment/6EPWW7KXXXA56';
+    $('btnPaypal').addEventListener('click', () => window.open(PAYPAL_URL, '_blank'));
+    $('btnWechat').addEventListener('click', () => $('wechatQr').classList.toggle('show'));
   }
 
   async function init() {
