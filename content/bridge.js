@@ -387,16 +387,33 @@
     return null;
   }
 
-  function findMenuItem(panel, patterns) {
+  function normalizeMenuText(text) {
+    return (text || '').toLowerCase().replace(/[()（）\[\]]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  function findMenuItem(panel, patternsOrSpec) {
     if (!panel) return null;
-    const items = panel.querySelectorAll('.ytp-menuitem');
+    const items = Array.from(panel.querySelectorAll('.ytp-menuitem'));
+    const spec = Array.isArray(patternsOrSpec)
+      ? { exact: patternsOrSpec, fallback: [], exclude: [] }
+      : patternsOrSpec;
+    const exact = (spec.exact || []).map(normalizeMenuText);
+    const fallback = (spec.fallback || []).map(normalizeMenuText);
+    const exclude = (spec.exclude || []).map(normalizeMenuText);
+
+    // 1) exact matches first
     for (const item of items) {
       const labelEl = item.querySelector('.ytp-menuitem-label') || item;
-      const text = (labelEl.textContent || '').toLowerCase().replace(/[()（）]/g, '');
-      for (const pat of patterns) {
-        const p = pat.toLowerCase().replace(/[()（）]/g, '');
-        if (text.includes(p)) return item;
-      }
+      const text = normalizeMenuText(labelEl.textContent);
+      if (exclude.some((e) => text.includes(e))) continue;
+      if (exact.some((p) => text.includes(p))) return item;
+    }
+    // 2) fallback matches
+    for (const item of items) {
+      const labelEl = item.querySelector('.ytp-menuitem-label') || item;
+      const text = normalizeMenuText(labelEl.textContent);
+      if (exclude.some((e) => text.includes(e))) continue;
+      if (fallback.some((p) => text.includes(p))) return item;
     }
     return null;
   }
@@ -464,18 +481,58 @@
 
   function targetLanguageLabels(code) {
     const map = {
-      'zh-CN': ['chinese simplified', 'chinese china', '中文简体', '中文中国', '简体中文', '中文'],
-      'zh-TW': ['chinese traditional', '中文繁體', '繁体中文', '中文'],
-      'ja':    ['japanese', '日语', '日本語'],
-      'ko':    ['korean', '韩语', '韓語', '한국어'],
-      'es':    ['spanish', '西班牙语', '西班牙文'],
-      'fr':    ['french', '法语', '法文', 'français'],
-      'de':    ['german', '德语', '德文', 'deutsch'],
-      'ru':    ['russian', '俄语', '俄文', 'русский'],
-      'pt':    ['portuguese', '葡萄牙语', 'português'],
-      'en':    ['english', '英语', '英文'],
+      'zh-CN': {
+        exact:    ['chinese simplified', 'chinese china', '中文简体', '中文中国', '简体中文'],
+        fallback: ['中文'],
+        exclude:  ['traditional', '繁体', '繁體'],
+      },
+      'zh-TW': {
+        exact:    ['chinese traditional', '中文繁體', '繁体中文', '繁體中文'],
+        fallback: ['中文'],
+        exclude:  ['simplified', '简体', '簡體'],
+      },
+      'ja': {
+        exact:    ['japanese', '日语', '日本語'],
+        fallback: [],
+        exclude:  [],
+      },
+      'ko': {
+        exact:    ['korean', '韩语', '韓語', '한국어'],
+        fallback: [],
+        exclude:  [],
+      },
+      'es': {
+        exact:    ['spanish', '西班牙语', '西班牙文'],
+        fallback: [],
+        exclude:  [],
+      },
+      'fr': {
+        exact:    ['french', '法语', '法文', 'français'],
+        fallback: [],
+        exclude:  [],
+      },
+      'de': {
+        exact:    ['german', '德语', '德文', 'deutsch'],
+        fallback: [],
+        exclude:  [],
+      },
+      'ru': {
+        exact:    ['russian', '俄语', '俄文', 'русский'],
+        fallback: [],
+        exclude:  [],
+      },
+      'pt': {
+        exact:    ['portuguese', '葡萄牙语', 'português'],
+        fallback: [],
+        exclude:  [],
+      },
+      'en': {
+        exact:    ['english', '英语', '英文'],
+        fallback: [],
+        exclude:  [],
+      },
     };
-    return map[code] || [code];
+    return map[code] || { exact: [code], fallback: [], exclude: [] };
   }
 
   async function applyViaUi(mode, targetLang) {
