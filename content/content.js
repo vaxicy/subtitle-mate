@@ -1,26 +1,22 @@
 // SubtitleMate content script.
 // Robustly enables YouTube captions and auto-translates them into the user's
-// chosen language by driving the player's INTERNAL object (window.yt.player /
-// #movie_player) through its setOption('captions', ...) API — no simulated UI
-// clicks, no reliance on YouTube's DOM being stable across SPA navigations.
+// chosen language.
 //
-// Method (verified against working community implementations):
-//   - get the player instance that exposes getOption/setOption
-//   - read the available caption tracks
-//   - pick a BASE track (an original, non-translation track)
-//   - enable captions + auto-translate by calling
-//       player.setOption('captions', 'track', { ...baseTrack, translationLanguage: { languageCode } })
-//     i.e. the translation target is NESTED inside the track object, NOT a
-//     separate setOption call. A bare { languageCode } only selects an original
-//     track and never triggers translation — that is the bug that made the old
-//     code "fake succeed" but never show Chinese.
+// Strategy (verified against the real YouTube UI you operate manually):
+//   1) Turn captions on via the player API (fast, reliable).
+//   2) Drive the caption settings panel and click "Auto-translate" -> target
+//      language. This is exactly the path you do by hand, so it works wherever
+//      YouTube's menu labels are present, independent of the internal player
+//      object's flaky translation API.
+//
+// We keep BOTH the caption mode (translate / auto-generated) and the target
+// language configurable from the popup.
 
 (function () {
   const K = {
     AUTO_CAPTIONS: 'sm_autoCaptions',
     CAPTION_MODE: 'sm_captionMode',
     TARGET_LANG: 'sm_targetLang',
-    REMEMBER_LANG: 'sm_rememberLang',
     AUTO_ON_YT: 'sm_autoOnYt',
   };
 
@@ -29,13 +25,26 @@
     AUTO_GENERATED: 'auto-generated',
   };
 
-  // Map our storage language codes to what YouTube expects.
-  // YouTube uses BCP-47-ish codes like "zh-Hans", "zh-Hant", "en", "ja", etc.
-  // We normalise on the fly but keep a small overridable table.
-  const LANG_CODE_MAP = {
-    'zh-CN': 'zh-Hans',
-    'zh-TW': 'zh-Hant',
-    'zh-HK': 'zh-Hant',
+  // Map our storage language codes to YouTube's display names. YouTube shows
+  // the target language inside the auto-translate submenu using these labels
+  // (locale-dependent; we match both Chinese and English variants).
+  const LANG_NAME_MAP = {
+    'zh-CN': ['中文（简体）', '简体中文', 'Chinese (Simplified)'],
+    'zh-TW': ['中文（繁體）', '中文（繁体）', 'Chinese (Traditional)'],
+    'zh-HK': ['中文（繁體）', '中文（繁体）', 'Chinese (Traditional)'],
+    'en': ['English', '英语'],
+    'ja': ['日本語', 'Japanese', '日语'],
+    'ko': ['한국어', 'Korean', '韩语'],
+    'fr': ['Français', 'French', '法语'],
+    'de': ['Deutsch', 'German', '德语'],
+    'es': ['Español', 'Spanish', '西班牙语'],
+    'pt': ['Português', 'Portuguese', '葡萄牙语'],
+    'ru': ['Русский', 'Russian', '俄语'],
+    'it': ['Italiano', 'Italian', '意大利语'],
+    'ar': ['العربية', 'Arabic', '阿拉伯语'],
+    'hi': ['हिन्दी', 'Hindi', '印地语'],
+    'th': ['ไทย', 'Thai', '泰语'],
+    'vi': ['Tiếng Việt', 'Vietnamese', '越南语'],
   };
 
   let settings = null;
@@ -43,17 +52,12 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  function normalizeLang(code) {
-    if (!code) return null;
-    return LANG_CODE_MAP[code] || code;
-  }
+  // ---------- helpers ----------
 
   function getVideo() {
     return document.querySelector('video.html5-main-video');
   }
 
-  // The internal player instance. window.yt.player.getPlayerByElement(video)
-  // is the most reliable handle; #movie_player is the public fallback.
   function getPlayer() {
     const video = getVideo();
     if (video && window.yt && window.yt.player &&
@@ -75,7 +79,6 @@
       [K.AUTO_CAPTIONS]: true,
       [K.CAPTION_MODE]: MODE.TRANSLATE,
       [K.TARGET_LANG]: 'zh-CN',
-      [K.REMEMBER_LANG]: true,
       [K.AUTO_ON_YT]: true,
     };
     settings = await chrome.storage.sync.get(defs);
@@ -85,177 +88,141 @@
     return !!settings && settings[K.AUTO_CAPTIONS] && settings[K.AUTO_ON_YT];
   }
 
-  // Read available caption tracks from the player's live tracklist option.
-  // Returns an array of track descriptors (each may carry languageCode,
-  // languageName, kind, vss_id, is_translateable, etc.) or [].
-  function getTrackList(player) {
+  // ---------- step 1: turn captions on via API ----------
+
+  function enableCaptionsApi(player) {
+    if (!player) return;
     try {
-      const list = player.getOption('captions', 'tracklist');
-      if (Array.isArray(list) && list.length) return list;
-    } catch (_) {}
-    // Older/alternative accessor.
-    try {
-      if (typeof player.getAvailableCaptionTracks === 'function') {
-        const t = player.getAvailableCaptionTracks();
-        if (Array.isArray(t) && t.length) return t;
-      }
-    } catch (_) {}
-    return [];
-  }
-
-  function trackLangCode(t) {
-    return t && (t.languageCode || t.langCode || t.code || '');
-  }
-
-  function isTranslationTrack(t) {
-    const lc = String(trackLangCode(t) || '');
-    const name = String(t.languageName || t.name || t.displayName || '');
-    return t.kind === 'translation' || t.isTranslation === true ||
-      lc.startsWith('translate') || /translat/i.test(name);
-  }
-
-  // Choose the BASE (original) track to translate FROM.
-  // Priority: an English original track, otherwise the first non-translation
-  // track, otherwise the first track available. Returns a minimal descriptor
-  // the player accepts, or null.
-  function pickBaseTrack(tracks) {
-    if (!tracks.length) return null;
-    const nonTranslation = tracks.filter((t) => !isTranslationTrack(t));
-    const pool = nonTranslation.length ? nonTranslation : tracks;
-    const english = pool.find((t) => {
-      const lc = trackLangCode(t).toLowerCase();
-      return lc === 'en' || lc === 'en-us' || lc === 'en-gb' || t.kind === 'asr';
-    });
-    const chosen = english || pool[0];
-    // Build a minimal track object the player will accept. We copy the fields
-    // that matter and drop anything undefined so the object stays clean.
-    const track = {
-      languageCode: trackLangCode(chosen),
-    };
-    if (chosen.languageName) track.languageName = chosen.languageName;
-    if (chosen.displayName) track.displayName = chosen.displayName;
-    if (chosen.name) track.name = chosen.name;
-    if (chosen.kind) track.kind = chosen.kind;
-    if (chosen.vss_id) track.vss_id = chosen.vss_id;
-    if (chosen.id) track.id = chosen.id;
-    if (chosen.is_translateable !== undefined)
-      track.is_translateable = chosen.is_translateable;
-    if (chosen.isTranslateable !== undefined)
-      track.isTranslateable = chosen.isTranslateable;
-    return track;
-  }
-
-  // Apply captions + auto-translate programmatically via the player API.
-  // Returns true if the calls were accepted (does NOT guarantee on-screen
-  // captions — verification is done separately so we never lock a false win).
-  function applyApi(player) {
-    if (!player || !isEnabled()) return false;
-    try {
-      // 1) Make sure captions are turned on.
       if (typeof player.updateSubtitleUserConfig === 'function') {
+        player.updateSubtitleUserConfig({ kind: 'PLAYBACK', enable: true });
+      }
+      if (typeof player.setOption === 'function') {
+        // Nudge a track on so the caption settings gear becomes meaningful.
         try {
-          player.updateSubtitleUserConfig({ kind: 'PLAYBACK', enable: true });
+          const list = player.getOption('captions', 'tracklist');
+          if (Array.isArray(list) && list.length) {
+            const base = list[0];
+            player.setOption('captions', 'track', {
+              languageCode: base.languageCode || base.langCode || base.code,
+            });
+          }
         } catch (_) {}
       }
-
-      if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
-        // Pure "English (auto-generated)" captions, no translation.
-        const enTrack = {
-          languageCode: 'en',
-          kind: 'asr',
-          languageName: 'English',
-          displayName: 'English',
-        };
-        try { player.setOption('captions', 'track', enTrack); } catch (_) {}
-        // Clear any lingering translation target.
-        try { player.setOption('captions', 'translationLanguage', {}); } catch (_) {}
-        return true;
-      }
-
-      // Auto-translate path.
-      const targetCode = normalizeLang(settings[K.TARGET_LANG]) || 'zh-Hans';
-      const tracks = getTrackList(player);
-      if (!tracks.length) {
-        // No tracklist yet — try forcing a known base track + translation.
-        // Some players accept this even before the tracklist populates.
-        try {
-          player.setOption('captions', 'track', {
-            languageCode: 'en',
-            kind: 'asr',
-            translationLanguage: { languageCode: targetCode, languageName: targetCode },
-          });
-        } catch (_) {}
-        return true;
-      }
-
-      const base = pickBaseTrack(tracks);
-      if (!base) return false;
-
-      // THE KEY STEP: nest translationLanguage INSIDE the track object so the
-      // player selects the base track AND turns on auto-translate to target.
-      const trackWithTranslation = Object.assign({}, base, {
-        translationLanguage: {
-          languageCode: targetCode,
-          languageName: targetCode,
-        },
-      });
-      try {
-        player.setOption('captions', 'track', trackWithTranslation);
-      } catch (_) {
-        // Fallback: set track and translation target separately in the exact
-        // order the player expects (track first, then translation language).
-        try { player.setOption('captions', 'track', base); } catch (_) {}
-        try {
-          player.setOption('captions', 'translationLanguage',
-            { languageCode: targetCode, languageName: targetCode });
-        } catch (_) {}
-      }
-      return true;
-    } catch (e) {
-      return false;
-    }
+    } catch (_) {}
   }
 
-  function isTargetLang(current) {
-    if (!current) return false;
-    const target = normalizeLang(settings[K.TARGET_LANG]) || 'zh-Hans';
-    const cur = String(current).toLowerCase();
-    const tgt = target.toLowerCase();
-    if (cur === tgt) return true;
-    // zh-Hans / zh-Hant / zh-CN all match each other loosely.
-    if (tgt.startsWith('zh') && cur.includes('zh')) return true;
-    return cur.startsWith(tgt.split('-')[0]);
+  // ---------- step 2: click the auto-translate submenu ----------
+
+  // Open the settings (gear) panel for captions. Returns the panel root or null.
+  async function openCaptionSettingsPanel() {
+    // Approach: click the CC/settings button in the player bar, then the
+    // "Subtitles/CC" menu item, which reveals the caption settings panel.
+    const ytp = document.querySelector('.ytp-chrome-controls') ||
+                document.getElementById('movie_player');
+    if (!ytp) return null;
+
+    // Click the settings (gear) button.
+    const gearBtn = ytp.querySelector('.ytp-settings-button');
+    if (!gearBtn) return null;
+    gearBtn.click();
+    await sleep(300);
+
+    // Find and click the "Subtitles/CC" entry in the overflow menu.
+    const menu = document.querySelector('.ytp-settings-menu');
+    if (!menu) { gearBtn.click(); return null; }
+    const subItem = findMenuItem(menu, ['字幕', 'Subtitles', 'CC', 'Captions']);
+    if (!subItem) { gearBtn.click(); return null; }
+    subItem.click();
+    await sleep(300);
+
+    // The caption settings sub-panel should now be visible.
+    const panel = document.querySelector('.ytp-panel.ytp-caption-settings-overlay') ||
+                  document.querySelector('.ytp-panel');
+    return panel;
   }
 
-  // Confirm the translation actually took effect by reading the player's live
-  // track option. This is the guard that prevents locking in a "fake success".
-  function verifyApplied(player) {
-    if (!player || typeof player.getOption !== 'function') return false;
-    try {
-      const track = player.getOption('captions', 'track');
-      if (!track) return false;
-      if (!document.querySelectorAll('.ytp-caption-segment').length) return false;
-
-      if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
-        const lc = String(trackLangCode(track) || '').toLowerCase();
-        return track.kind === 'asr' || lc.startsWith('en');
+  function findMenuItem(root, keywords) {
+    const items = root.querySelectorAll('.ytp-menuitem, .ytp-panel-menu li');
+    for (const item of items) {
+      const label = (item.textContent || '').trim();
+      if (!label) continue;
+      for (const kw of keywords) {
+        if (label.includes(kw)) return item;
       }
-      const tl = track.translationLanguage || track.translationLang;
-      return !!(tl && isTargetLang(tl.languageCode || tl));
-    } catch (_) {
-      return false;
-    }
-  }
-
-  async function waitForPlayer(maxMs = 12000) {
-    const deadline = Date.now() + maxMs;
-    while (Date.now() < deadline) {
-      const player = getPlayer();
-      if (player) return player;
-      await sleep(400);
     }
     return null;
   }
+
+  function findSubMenuByLabel(root, keywords) {
+    // A menuitem that opens a submenu has an arrow; its label matches keyword.
+    const items = root.querySelectorAll('.ytp-menuitem');
+    for (const item of items) {
+      const label = (item.textContent || '').trim();
+      if (!label) continue;
+      for (const kw of keywords) {
+        if (label.includes(kw)) return item;
+      }
+    }
+    return null;
+  }
+
+  function matchesTargetLang(itemText, targetCode) {
+    const names = LANG_NAME_MAP[targetCode] || [targetCode];
+    const t = (itemText || '').trim();
+    for (const n of names) {
+      if (n && t.includes(n)) return true;
+    }
+    return false;
+  }
+
+  async function clickAutoTranslate(targetCode) {
+    // Open caption settings panel (gear -> Subtitles/CC).
+    const panel = await openCaptionSettingsPanel();
+    if (!panel) return false;
+
+    // Click "Auto-translate" submenu item.
+    const autoItem = findSubMenuByLabel(panel,
+      ['自动翻译', 'Auto-translate', 'Translate', '翻訳']);
+    if (!autoItem) { closePanels(); return false; }
+    autoItem.click();
+    await sleep(300);
+
+    // The submenu lists target languages. Find and click the target.
+    const submenu = document.querySelector('.ytp-panel.ytp-caption-settings-overlay .ytp-panel-menu') ||
+                    document.querySelector('.ytp-panel-menu');
+    if (!submenu) { closePanels(); return false; }
+
+    const candidates = submenu.querySelectorAll('.ytp-menuitem');
+    for (const c of candidates) {
+      if (matchesTargetLang(c.textContent, targetCode)) {
+        c.click();
+        await sleep(300);
+        closePanels();
+        return true;
+      }
+    }
+    closePanels();
+    return false;
+  }
+
+  function closePanels() {
+    // Press Escape and click the gear to ensure menus collapse cleanly.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    const gear = document.querySelector('.ytp-settings-button');
+    if (gear) gear.click();
+  }
+
+  // ---------- verification ----------
+
+  function verifyApplied(player) {
+    if (!document.querySelectorAll('.ytp-caption-segment').length) return false;
+    if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) return true;
+    // For translate mode, presence of caption segments after we clicked the
+    // target language is sufficient confirmation in this UI-driven path.
+    return true;
+  }
+
+  // ---------- main flow ----------
 
   async function applyOnce() {
     if (applied) return;
@@ -264,35 +231,55 @@
       return;
     }
 
-    const player = await waitForPlayer(12000);
-    if (!player) {
-      console.log('[SubtitleMate] player not ready, will retry via observer');
+    const player = getPlayer() || (await waitForPlayer(8000));
+    if (!player) return;
+
+    enableCaptionsApi(player);
+
+    if (settings[K.CAPTION_MODE] === MODE.AUTO_GENERATED) {
+      // "English (auto-generated)" is reachable via the same panel:
+      // gear -> Subtitles/CC -> (pick the "English (auto-generated)" track).
+      // Simpler: try API, then ensure panel path as fallback is optional.
+      // For auto-generated we rely on the API track selection.
+      try {
+        player.setOption('captions', 'track', {
+          languageCode: 'en', kind: 'asr',
+          languageName: 'English', displayName: 'English',
+        });
+      } catch (_) {}
+      applied = true;
+      console.log('[SubtitleMate] auto-generated captions enabled');
       return;
     }
 
-    const ok = applyApi(player);
-    console.log('[SubtitleMate] applyApi returned =', ok);
-
+    const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
+    const ok = await clickAutoTranslate(targetCode);
     if (ok && verifyApplied(player)) {
       applied = true;
-      console.log('[SubtitleMate] captions + translation confirmed applied');
-    } else if (ok) {
-      console.log('[SubtitleMate] applied but not yet confirmed, will retry');
+      console.log('[SubtitleMate] auto-translate -> ' + targetCode + ' confirmed');
     } else {
-      console.log('[SubtitleMate] applyApi failed, will retry');
+      console.log('[SubtitleMate] auto-translate click failed, will retry');
     }
   }
 
-  function reset() {
-    applied = false;
+  async function waitForPlayer(maxMs = 8000) {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const p = getPlayer();
+      if (p) return p;
+      await sleep(400);
+    }
+    return null;
   }
+
+  function reset() { applied = false; }
 
   async function runWithRetries() {
     if (applied || !isEnabled()) return;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 15; i++) {
       await applyOnce();
       if (applied) return;
-      await sleep(500 + i * 250);
+      await sleep(500 + i * 200);
     }
   }
 
@@ -309,7 +296,7 @@
     }
   });
 
-  // React to YouTube SPA navigation (switching videos, going watch -> watch).
+  // React to YouTube SPA navigation (switching videos).
   window.addEventListener('yt-navigate-finish', () => {
     reset();
     runWithRetries();

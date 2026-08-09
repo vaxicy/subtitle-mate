@@ -41,7 +41,6 @@
     $('lblCaptionMode').textContent = i18n.captionMode;
     $('lblTargetLang').textContent = i18n.targetLang;
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
-    $('lblRemember').textContent = i18n.remember;
     $('lblAutoYt').textContent = i18n.autoOnYt;
     $('btnApplyText').textContent = i18n.applyNow;
     $('btnApply').title = i18n.applySettings;
@@ -57,7 +56,6 @@
     $('targetLang').disabled = !translateMode;
     $('targetLang').classList.toggle('disabled', !translateMode);
     $('lblTargetLangHint').style.visibility = translateMode ? 'visible' : 'hidden';
-    $('chkRemember').checked = settings[STORAGE_KEYS.REMEMBER_LANG];
     $('chkAutoYt').checked = settings[STORAGE_KEYS.AUTO_ON_YT];
   }
 
@@ -86,9 +84,6 @@
 
     $('targetLang').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.TARGET_LANG]: e.target.value }));
-
-    $('chkRemember').addEventListener('change', (e) =>
-      save({ [STORAGE_KEYS.REMEMBER_LANG]: e.target.checked }));
 
     $('chkAutoYt').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.AUTO_ON_YT]: e.target.checked }));

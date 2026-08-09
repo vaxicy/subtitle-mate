@@ -6,7 +6,6 @@ chrome.runtime.onInstalled.addListener(async () => {
     sm_autoCaptions: true,
     sm_captionMode: 'translate',
     sm_targetLang: 'zh-CN',
-    sm_rememberLang: true,
     sm_autoOnYt: true,
   };
   const existing = await chrome.storage.sync.get(Object.keys(defs));

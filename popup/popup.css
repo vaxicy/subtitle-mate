@@ -113,6 +113,7 @@ body {
 }
 
 .checks { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.apply-row { margin-top: 4px; }
 
 /* Footer "Apply" entry: a small text button with an icon, not a full-width block. */
 .apply-link {
