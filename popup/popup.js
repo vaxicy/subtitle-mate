@@ -36,7 +36,6 @@
 
   function applyUI() {
     const i18n = I18N[uiLang];
-    $('extName').textContent = i18n.name;
     $('lblAutoCaptions').textContent = i18n.autoCaptions;
     $('lblCaptionMode').textContent = i18n.captionMode;
     $('lblTargetLang').textContent = i18n.targetLang;
