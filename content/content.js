@@ -15,7 +15,6 @@
     CAPTION_MODE: 'sm_captionMode',
     TARGET_LANG: 'sm_targetLang',
     AUTO_ON_YT: 'sm_autoOnYt',
-    AUTO_RELOAD_ON_FAIL: 'sm_autoReloadOnFail',
     AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
     PLAYBACK_RATE: 'sm_playbackRate',
   };
@@ -39,7 +38,6 @@
       [K.CAPTION_MODE]: MODE.TRANSLATE,
       [K.TARGET_LANG]: 'zh-CN',
       [K.AUTO_ON_YT]: true,
-      [K.AUTO_RELOAD_ON_FAIL]: false,
       [K.AUTO_PLAYBACK_SPEED]: false,
       [K.PLAYBACK_RATE]: 1.5,
     };
@@ -146,8 +144,7 @@
     try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
   }
 
-  // Mark so a manual "Apply" from the popup does not trigger auto-reload.
-  let lastRunWasAutomatic = true;
+
 
   function currentVideoId() {
     const m = location.href.match(/[?&]v=([^&]+)/);
@@ -157,7 +154,6 @@
   async function runWithRetries() {
     if (running || applied || !isEnabled()) return;
     running = true;
-    lastRunWasAutomatic = true;
     try {
       for (let i = 0; i < 15; i++) {
         await applyOnce();
@@ -166,26 +162,9 @@
       }
       // Exhausted retries without success -> definitive failure.
       console.log('[SubtitleMate] failed after retries; applied=' + applied);
-      maybeAutoReload();
     } finally {
       running = false;
     }
-  }
-
-  function maybeAutoReload() {
-    if (!settings || !settings[K.AUTO_RELOAD_ON_FAIL]) return;
-    if (!lastRunWasAutomatic) return;
-    const vid = currentVideoId();
-    const flag = 'sm_reloaded_once_' + vid;
-    try {
-      if (sessionStorage.getItem(flag)) {
-        console.log('[SubtitleMate] already auto-reloaded once for this video, skip');
-        return;
-      }
-      sessionStorage.setItem(flag, '1');
-    } catch (_) {}
-    console.log('[SubtitleMate] auto-reload page (sm_autoReloadOnFail)');
-    location.reload();
   }
 
   // ---------- listeners ----------
@@ -204,7 +183,6 @@
     if (msg && msg.type === 'SM_SETTINGS_CHANGED') {
       settings = msg.settings;
       reset();
-      lastRunWasAutomatic = false; // user-driven change: don't auto-reload
       runWithRetries();
     }
   });

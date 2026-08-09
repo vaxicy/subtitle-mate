@@ -53,7 +53,6 @@
     $('lblTargetLang').textContent = i18n.targetLang;
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
-    $('lblAutoReload').textContent = i18n.autoReloadOnFail;
     $('lblAutoSpeed').textContent = i18n.autoPlaybackSpeed;
     $('lblSpeed').textContent = i18n.playbackSpeed;
     $('lnkSupport').textContent = i18n.supportLink;
@@ -70,7 +69,6 @@
     $('targetLang').classList.toggle('disabled', !translateMode);
     $('lblTargetLangHint').style.visibility = translateMode ? 'visible' : 'hidden';
     $('chkAutoYt').checked = settings[STORAGE_KEYS.AUTO_ON_YT];
-    $('chkAutoReload').checked = settings[STORAGE_KEYS.AUTO_RELOAD_ON_FAIL];
 
     // Playback speed controls.
     $('chkAutoSpeed').checked = settings[STORAGE_KEYS.AUTO_PLAYBACK_SPEED];
@@ -107,9 +105,6 @@
     $('chkAutoYt').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.AUTO_ON_YT]: e.target.checked }));
 
-    $('chkAutoReload').addEventListener('change', (e) =>
-      save({ [STORAGE_KEYS.AUTO_RELOAD_ON_FAIL]: e.target.checked }));
-
     $('chkAutoSpeed').addEventListener('change', (e) => {
       save({ [STORAGE_KEYS.AUTO_PLAYBACK_SPEED]: e.target.checked });
       applyUI();
@@ -135,6 +130,8 @@
     $('logo').src = chrome.runtime.getURL('icons/icon48.png');
     bindEvents();
     applyUI();
+    // Clean up legacy storage key removed in this version.
+    chrome.storage.sync.remove('sm_autoReloadOnFail').catch(() => {});
   }
 
   init();
