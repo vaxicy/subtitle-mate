@@ -12,7 +12,7 @@
 
 body {
   width: 230px;
-  max-height: 200px;
+  max-height: 180px;
   overflow-y: auto;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text);
@@ -103,6 +103,7 @@ body::-webkit-scrollbar-thumb:hover {
 .toggle[aria-checked="true"] .knob { transform: translateX(18px); }
 
 .block { margin-bottom: 6px; }
+#speedBlock { margin-top: 4px; }
 .block-label {
   display: block;
   font-size: 11px;
