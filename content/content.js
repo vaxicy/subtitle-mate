@@ -29,6 +29,7 @@
   let applied = false;
   let running = false;
   let bridgeReady = false;
+  let navigateDebounceTimer = null;
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -124,6 +125,8 @@
     console.log('[SubtitleMate] bridge result -> ' + JSON.stringify(result));
     if (result && result.ok) {
       applied = true;
+      // Stop further automatic triggers once successfully applied.
+      try { observer.disconnect(); } catch (_) {}
       console.log('[SubtitleMate] success: ' + result.info);
     } else {
       console.log('[SubtitleMate] failed: ' + (result && result.info || 'unknown'));
@@ -137,7 +140,11 @@
     }
   }
 
-  function reset() { applied = false; }
+  function reset() {
+    applied = false;
+    // Re-enable observer in case it was disconnected after a previous success.
+    try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+  }
 
   // Mark so a manual "Apply" from the popup does not trigger auto-reload.
   let lastRunWasAutomatic = true;
@@ -204,8 +211,11 @@
 
   // React to YouTube SPA navigation (switching videos).
   window.addEventListener('yt-navigate-finish', () => {
-    reset();
-    runWithRetries();
+    clearTimeout(navigateDebounceTimer);
+    navigateDebounceTimer = setTimeout(() => {
+      reset();
+      runWithRetries();
+    }, 300);
   });
 
   // Watch for the video element being injected (run_at: document_start).
