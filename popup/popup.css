@@ -12,17 +12,18 @@
 
 body {
   width: 230px;
-  max-height: 380px;
+  max-height: 250px;
   overflow-y: auto;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  /* Hide native scrollbar (Firefox) */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* Custom scrollbar: keep thin track, subtle thumb */
+/* Custom scrollbar: hidden native track, thin themed thumb (Chromium) */
 body::-webkit-scrollbar {
   width: 6px;
 }
