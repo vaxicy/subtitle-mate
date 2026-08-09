@@ -1,0 +1,1 @@
+SubtitleMate popup 缩窄：宽度 250->230px，垂直间距压缩约 20-30px
