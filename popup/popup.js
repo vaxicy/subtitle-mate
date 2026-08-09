@@ -42,6 +42,7 @@
     $('lblTargetLang').textContent = i18n.targetLang;
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
+    $('lblAutoReload').textContent = i18n.autoReloadOnFail;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
     const toggle = $('toggleAuto');
@@ -55,6 +56,7 @@
     $('targetLang').classList.toggle('disabled', !translateMode);
     $('lblTargetLangHint').style.visibility = translateMode ? 'visible' : 'hidden';
     $('chkAutoYt').checked = settings[STORAGE_KEYS.AUTO_ON_YT];
+    $('chkAutoReload').checked = settings[STORAGE_KEYS.AUTO_RELOAD_ON_FAIL];
   }
 
   async function save(patch) {
@@ -85,6 +87,9 @@
 
     $('chkAutoYt').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.AUTO_ON_YT]: e.target.checked }));
+
+    $('chkAutoReload').addEventListener('change', (e) =>
+      save({ [STORAGE_KEYS.AUTO_RELOAD_ON_FAIL]: e.target.checked }));
 
     $('langSwitch').addEventListener('click', () => {
       uiLang = uiLang === 'en' ? 'zh' : 'en';

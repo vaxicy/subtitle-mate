@@ -7,6 +7,7 @@
     CAPTION_MODE: 'sm_captionMode',
     TARGET_LANG: 'sm_targetLang',
     AUTO_ON_YT: 'sm_autoOnYt',
+    AUTO_RELOAD_ON_FAIL: 'sm_autoReloadOnFail',
   };
 
   // Caption modes:
@@ -46,6 +47,7 @@
       targetLang: 'Translate to',
       targetLangHint: 'Used when caption mode is "Auto-translate"',
       autoOnYt: 'Enable automatically on YouTube',
+      autoReloadOnFail: 'Auto-reload page if it fails',
       settings: 'Settings',
       applySettings: 'Apply to current video',
       applyNow: 'Apply',
@@ -62,6 +64,7 @@
       targetLang: '翻译为',
       targetLangHint: '仅在「自动翻译」模式下生效',
       autoOnYt: '在 YouTube 上自动启用',
+      autoReloadOnFail: '应用失败时自动刷新页面',
       settings: '设置',
       applySettings: '应用到当前视频',
       applyNow: '应用',
@@ -76,6 +79,7 @@
     [STORAGE_KEYS.CAPTION_MODE]: CAPTION_MODES.TRANSLATE,
     [STORAGE_KEYS.TARGET_LANG]: 'zh-CN',
     [STORAGE_KEYS.AUTO_ON_YT]: true,
+    [STORAGE_KEYS.AUTO_RELOAD_ON_FAIL]: false,
   };
 
   async function getSettings() {

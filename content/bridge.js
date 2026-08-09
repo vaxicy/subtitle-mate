@@ -115,7 +115,17 @@
     return isValidPlayer(p) && !(p instanceof HTMLElement);
   }
 
+  // Returns true if the player object can accept the captions API directly,
+  // regardless of whether it is also a DOM element (some builds expose
+  // getOption/setOption on the #movie_player element itself).
+  function canUseApi(p) {
+    return isValidPlayer(p);
+  }
+
   async function waitForPlayer(maxMs = 15000) {
+    // YouTube player injection usually finishes after a short delay; give it
+    // one initial pause so the first attempt doesn't hit a not-yet-ready DOM.
+    await sleep(800);
     const deadline = Date.now() + maxMs;
     while (Date.now() < deadline) {
       const p = getPlayer();
@@ -535,8 +545,18 @@
     return map[code] || { exact: [code], fallback: [], exclude: [] };
   }
 
+  async function openSubtitlesMenuWithRetry(maxAttempts = 3) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const ok = await openSubtitlesMenu();
+      if (ok) return true;
+      // Menu items are asynchronously filled; close and retry after a pause.
+      await sleep(500);
+    }
+    return false;
+  }
+
   async function applyViaUi(mode, targetLang) {
-    const ok = await openSubtitlesMenu();
+    const ok = await openSubtitlesMenuWithRetry(3);
     if (!ok) {
       // If settings menu didn't open, try direct CC button as last resort.
       if (clickCcButtonIfPresent()) {
@@ -576,9 +596,11 @@
     const mode = payload.mode;
     const targetLang = payload.targetLang || 'zh-CN';
 
-    // Try real player API first.
+    // Try real player API first. A DOM-element player can still expose the
+    // captions API in some builds, so we attempt the API whenever the object
+    // is valid rather than hard-skipping HTMLElement instances.
     const player = getPlayer() || (await waitForPlayer(15000));
-    if (player && isRealPlayer(player)) {
+    if (player && canUseApi(player)) {
       enableCaptionsApi(player);
 
       if (mode === 'auto-generated') {
@@ -589,8 +611,6 @@
         if (ok) return { ok: true, info: 'translated to ' + targetLang + ' via API' };
       }
       console.log('[SubtitleMate] API approach failed, trying UI fallback');
-    } else if (player) {
-      console.log('[SubtitleMate] player is only a DOM element, skipping API and using UI fallback');
     } else {
       console.log('[SubtitleMate] player not found after wait, trying UI fallback');
     }
