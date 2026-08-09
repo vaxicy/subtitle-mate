@@ -35,7 +35,7 @@ body::-webkit-scrollbar-thumb:hover {
 
 .card {
   padding: 10px;
-  height: 250px;
+  height: 225px;
   overflow-y: auto;
   overflow-x: hidden;
   /* Hide native scrollbar (Firefox) */
