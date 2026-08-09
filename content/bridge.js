@@ -121,30 +121,98 @@
     return null;
   }
 
+  function normalizeTrack(raw) {
+    if (!raw) return null;
+    const nameObj = raw.name || raw.displayName;
+    const nameText = typeof nameObj === 'string' ? nameObj : (nameObj && nameObj.simpleText) || '';
+    return {
+      languageCode: raw.languageCode || raw.langCode || raw.code || '',
+      vssId: raw.vssId || raw.vss_id || '',
+      kind: raw.kind || '',
+      name: { simpleText: nameText },
+      displayName: nameText,
+      baseUrl: raw.baseUrl || raw.base_url || '',
+      isTranslatable: !!raw.isTranslatable,
+      translationLanguage: raw.translationLanguage || null,
+    };
+  }
+
+  function toArray(x) {
+    if (Array.isArray(x)) return x;
+    if (x && typeof x.length === 'number') {
+      try { return Array.prototype.slice.call(x); } catch (_) {}
+    }
+    return [];
+  }
+
   function getTracklist(player) {
     try {
-      const list = player.getOption('captions', 'tracklist');
-      return Array.isArray(list) ? list : [];
-    } catch (_) {
-      return [];
+      const raw = player.getOption('captions', 'tracklist');
+      const list = toArray(raw);
+      if (list.length) return list.map(normalizeTrack).filter(Boolean);
+    } catch (e) {
+      console.log('[SubtitleMate] getOption(captions,tracklist) threw -> ' + (e && e.message));
     }
+    return [];
+  }
+
+  function getTracklistFromPlayerResponse(player) {
+    try {
+      let response = null;
+      if (typeof player.getPlayerResponse === 'function') {
+        response = player.getPlayerResponse();
+      }
+      if (!response && window.ytInitialPlayerResponse) {
+        response = window.ytInitialPlayerResponse;
+      }
+      if (!response && window.ytplayer && window.ytplayer.config && window.ytplayer.config.args) {
+        response = window.ytplayer.config.args.raw_player_response;
+      }
+      const tracks = response && response.captions && response.captions.captionTracks;
+      const list = toArray(tracks);
+      if (list.length) {
+        console.log('[SubtitleMate] tracklist from player response: ' + list.length);
+        return list.map(normalizeTrack).filter(Boolean);
+      }
+    } catch (e) {
+      console.log('[SubtitleMate] getTracklistFromPlayerResponse threw -> ' + (e && e.message));
+    }
+    return [];
+  }
+
+  async function waitForTracklist(player, maxMs = 10000) {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const fromPlayer = getTracklist(player);
+      if (fromPlayer.length) {
+        console.log('[SubtitleMate] waitForTracklist: got ' + fromPlayer.length + ' from player API');
+        return fromPlayer;
+      }
+      const fromResponse = getTracklistFromPlayerResponse(player);
+      if (fromResponse.length) {
+        console.log('[SubtitleMate] waitForTracklist: got ' + fromResponse.length + ' from player response');
+        return fromResponse;
+      }
+      await sleep(400);
+    }
+    console.log('[SubtitleMate] waitForTracklist: timeout');
+    return [];
   }
 
   function trackId(t) {
     return t.languageCode || t.langCode || t.code;
   }
 
-  function pickBaseTracks(player) {
-    const list = getTracklist(player);
-    if (!list.length) return [];
+  function pickBaseTracks(list) {
+    if (!list || !list.length) return [];
 
     const score = (t) => {
       const isTranslation = !!t.translationLanguage ||
-        /翻译|translat/i.test(t.displayName || t.name || '');
+        /翻译|translat/i.test(t.displayName || '');
       let s = isTranslation ? -100 : 0;
-      const lc = (t.languageCode || t.langCode || t.code || '').toLowerCase();
+      const lc = (t.languageCode || '').toLowerCase();
       if (lc === 'en') s += 50;
-      if (t.kind === 'asr' || /auto|asr/i.test(t.displayName || t.name || '')) s += 20;
+      if (t.kind === 'asr' || /auto|asr/i.test(t.displayName || '')) s += 20;
       return s;
     };
 
@@ -154,12 +222,26 @@
       .sort((a, b) => score(b) - score(a));
   }
 
+  function loadCaptionsModule(player) {
+    if (!player) return;
+    try {
+      if (typeof player.loadModule === 'function') player.loadModule('captions');
+    } catch (_) {}
+    try {
+      if (typeof player.loadModule === 'function') player.loadModule('captionsUI');
+    } catch (_) {}
+  }
+
   function enableCaptionsApi(player) {
     if (!player) return;
+    loadCaptionsModule(player);
     try {
       if (typeof player.updateSubtitleUserConfig === 'function') {
         player.updateSubtitleUserConfig({ kind: 'PLAYBACK', enable: true });
       }
+    } catch (_) {}
+    try {
+      player.setOption('captions', 'reload', true);
     } catch (_) {}
   }
 
@@ -171,11 +253,17 @@
     return document.querySelectorAll('.ytp-caption-segment').length > 0;
   }
 
+  function readTranslationLanguage(cur) {
+    if (!cur || !cur.translationLanguage) return '';
+    const tl = cur.translationLanguage;
+    if (typeof tl === 'string') return tl;
+    return tl.languageCode || tl.langCode || tl.code || '';
+  }
+
   function verifyTranslateApplied(player, targetCode) {
     try {
       const cur = player.getOption('captions', 'track');
-      const tl = cur && cur.translationLanguage;
-      const got = (tl && (tl.languageCode || tl.langCode || '') || '').toLowerCase();
+      const got = readTranslationLanguage(cur).toLowerCase();
       const segments = document.querySelectorAll('.ytp-caption-segment').length > 0;
       console.log('[SubtitleMate] verify: track.lang=' + (cur && (cur.languageCode || cur.langCode || '')) +
         ' translationLanguage=' + got + ' want=' + targetCode + ' segments=' + segments);
@@ -187,17 +275,18 @@
   }
 
   async function applyTranslateViaApi(player, targetCode) {
-    const bases = pickBaseTracks(player);
+    const allTracks = await waitForTracklist(player, 10000);
+    const bases = pickBaseTracks(allTracks);
     if (!bases.length) {
-      console.log('[SubtitleMate] translate: no base track available');
+      console.log('[SubtitleMate] translate: no base track available after wait. raw count=' + allTracks.length);
       return false;
     }
 
     console.log('[SubtitleMate] translate: tracklist = ' +
-      JSON.stringify(getTracklist(player).map((t) => ({
-        lc: t.languageCode || t.langCode || t.code,
+      JSON.stringify(allTracks.map((t) => ({
+        lc: t.languageCode,
         kind: t.kind,
-        name: t.displayName || t.name,
+        name: t.displayName,
         isTl: !!t.translationLanguage,
       }))));
 
@@ -205,13 +294,22 @@
       try {
         const id = trackId(base);
         if (!id) continue;
-        const select = { ...base, translationLanguage: { languageCode: targetCode } };
+        // YouTube expects translationLanguage as a string code on some builds,
+        // and as an object on others. Try both shapes.
+        const selectObj = { ...base, translationLanguage: { languageCode: targetCode } };
+        const selectStr = { ...base, translationLanguage: targetCode };
         console.log('[SubtitleMate] translate: setOption track = ' +
           JSON.stringify({ lc: id, kind: base.kind, target: targetCode }));
-        player.setOption('captions', 'track', select);
-        await sleep(300);
+        player.setOption('captions', 'track', selectObj);
+        await sleep(400);
         if (verifyTranslateApplied(player, targetCode)) {
-          console.log('[SubtitleMate] translate: confirmed base=' + id + ' -> ' + targetCode);
+          console.log('[SubtitleMate] translate: confirmed (obj) base=' + id + ' -> ' + targetCode);
+          return true;
+        }
+        player.setOption('captions', 'track', selectStr);
+        await sleep(400);
+        if (verifyTranslateApplied(player, targetCode)) {
+          console.log('[SubtitleMate] translate: confirmed (str) base=' + id + ' -> ' + targetCode);
           return true;
         }
         console.log('[SubtitleMate] translate: base=' + id + ' did not apply, trying next');
@@ -223,17 +321,25 @@
   }
 
   async function applyAutoGeneratedViaApi(player) {
-    const bases = pickBaseTracks(player);
+    const allTracks = await waitForTracklist(player, 10000);
+    const bases = pickBaseTracks(allTracks);
     const en = bases.find((b) => {
       const lc = (trackId(b) || '').toLowerCase();
-      return lc === 'en' || /english/i.test(b.displayName || b.name || '');
+      return lc === 'en' || /english/i.test(b.displayName || '');
     }) || bases[0];
-    if (!en) return false;
+    if (!en) {
+      console.log('[SubtitleMate] auto-generated: no base track after wait. raw count=' + allTracks.length);
+      return false;
+    }
     try {
       const id = trackId(en);
       if (!id) return false;
       // Use the full original track object to keep required fields.
       player.setOption('captions', 'track', { ...en });
+      await sleep(400);
+      if (verifyCaptionsOn(player)) return true;
+      // Some builds also need an explicit enable flag.
+      try { player.setOption('captions', 'enable', true); } catch (_) {}
       await sleep(300);
       return verifyCaptionsOn(player);
     } catch (e) {
@@ -242,11 +348,27 @@
     }
   }
 
+  function clickCcButtonIfPresent() {
+    try {
+      const btn = document.querySelector('.ytp-subtitles-button.ytp-button') ||
+                  document.querySelector('button[title*="字幕"]') ||
+                  document.querySelector('button[aria-label*="字幕"]') ||
+                  document.querySelector('button[title*="subtitles"]') ||
+                  document.querySelector('button[aria-label*="subtitles"]');
+      if (btn && !btn.classList.contains('ytp-active')) {
+        console.log('[SubtitleMate] fallback: clicking CC button to load captions module');
+        btn.click();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   async function handleApply(payload) {
     const mode = payload.mode;
     const targetLang = payload.targetLang || 'zh-CN';
 
-    const player = getPlayer() || (await waitForPlayer(8000));
+    let player = getPlayer() || (await waitForPlayer(10000));
     if (!player) {
       return { ok: false, info: 'player not found after wait' };
     }
@@ -254,11 +376,21 @@
     enableCaptionsApi(player);
 
     if (mode === 'auto-generated') {
-      const ok = await applyAutoGeneratedViaApi(player);
+      let ok = await applyAutoGeneratedViaApi(player);
+      if (!ok && clickCcButtonIfPresent()) {
+        await sleep(800);
+        player = getPlayer() || player;
+        ok = await applyAutoGeneratedViaApi(player);
+      }
       return { ok, info: ok ? 'English (auto-generated) enabled' : 'auto-generated API failed' };
     }
 
-    const ok = await applyTranslateViaApi(player, targetLang);
+    let ok = await applyTranslateViaApi(player, targetLang);
+    if (!ok && clickCcButtonIfPresent()) {
+      await sleep(800);
+      player = getPlayer() || player;
+      ok = await applyTranslateViaApi(player, targetLang);
+    }
     return { ok, info: ok ? 'translated to ' + targetLang : 'translate API failed' };
   }
 

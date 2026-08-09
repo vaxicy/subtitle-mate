@@ -113,7 +113,7 @@
     const result = await sendBridgeCommand('APPLY', {
       mode: mode,
       targetLang: targetCode,
-    }, 15000);
+    }, 30000);
 
     console.log('[SubtitleMate] bridge result -> ' + JSON.stringify(result));
     if (result && result.ok) {
