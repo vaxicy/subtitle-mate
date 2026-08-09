@@ -49,16 +49,107 @@ def draw_center(d, cx, cy, s, f, fill):
 
 
 # ---------- Icons ----------
-# Use the real extension icon as the single source of truth for all assets.
-ICON_SOURCE = os.path.join(ROOT, "icons", "icon128.png")
+# Use icon-source.png as the single source of truth; auto-matte white background to transparent.
+ICON_SOURCE = os.path.join(ROOT, "store-assets", "icon-source.png")
 _source_icon = None
+_source_icon_no_bg = None
+
+
+def remove_background(img_rgba, tolerance=35, edge_expand=2):
+    """Remove only the edge-connected background, preserving internal whites.
+
+    Flood-fills from the image border so isolated white areas inside the icon
+    (e.g. speech-bubble fill, letter counters) stay opaque.
+    """
+    from collections import deque
+
+    w, h = img_rgba.size
+    # Pillow 10+ deprecates getdata(); use get_flattened_data when available.
+    try:
+        px = list(img_rgba.get_flattened_data())
+    except AttributeError:
+        px = list(img_rgba.getdata())
+
+    # Reference background colour from the four corners.
+    corners = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]
+    bg_r = sum(px[y * w + x][0] for x, y in corners) // 4
+    bg_g = sum(px[y * w + x][1] for x, y in corners) // 4
+    bg_b = sum(px[y * w + x][2] for x, y in corners) // 4
+
+    def is_bg(idx):
+        r, g, b, _ = px[idx]
+        return (abs(r - bg_r) <= tolerance and
+                abs(g - bg_g) <= tolerance and
+                abs(b - bg_b) <= tolerance)
+
+    mask = [False] * (w * h)
+    q = deque()
+
+    # Seed every border pixel.
+    for y in range(h):
+        for x in (0, w - 1):
+            idx = y * w + x
+            if not mask[idx] and is_bg(idx):
+                mask[idx] = True
+                q.append(idx)
+    for x in range(1, w - 1):
+        for y in (0, h - 1):
+            idx = y * w + x
+            if not mask[idx] and is_bg(idx):
+                mask[idx] = True
+                q.append(idx)
+
+    # 8-direction flood fill.
+    while q:
+        idx = q.popleft()
+        x = idx % w
+        y = idx // w
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    nidx = ny * w + nx
+                    if not mask[nidx] and is_bg(nidx):
+                        mask[nidx] = True
+                        q.append(nidx)
+
+    # Expand the mask by a couple of pixels to clean anti-aliased white fringe
+    # without touching icon content that is not connected to the background.
+    if edge_expand > 0:
+        new_mask = mask[:]
+        for y in range(h):
+            for x in range(w):
+                idx = y * w + x
+                if mask[idx] or not is_bg(idx):
+                    continue
+                for dx in range(-edge_expand, edge_expand + 1):
+                    for dy in range(-edge_expand, edge_expand + 1):
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < w and 0 <= ny < h and mask[ny * w + nx]:
+                            new_mask[idx] = True
+                            break
+                    if new_mask[idx]:
+                        break
+        mask = new_mask
+
+    new = [(r, g, b, 0) if mask[i] else (r, g, b, a)
+           for i, (r, g, b, a) in enumerate(px)]
+    img_rgba.putdata(new)
+    return img_rgba
+
+
+def load_source_icon():
+    global _source_icon_no_bg
+    if _source_icon_no_bg is None:
+        img = Image.open(ICON_SOURCE).convert("RGBA")
+        _source_icon_no_bg = remove_background(img)
+    return _source_icon_no_bg
 
 
 def make_icon(size):
-    global _source_icon
-    if _source_icon is None:
-        _source_icon = Image.open(ICON_SOURCE).convert("RGBA")
-    return _source_icon.resize((size, size), Image.LANCZOS)
+    return load_source_icon().resize((size, size), Image.LANCZOS)
 
 
 def make_toolbar_icon(source, target_size=16, fill_ratio=0.92):
@@ -81,7 +172,7 @@ def make_toolbar_icon(source, target_size=16, fill_ratio=0.92):
 
 def gen_icons():
     os.makedirs(ICONS, exist_ok=True)
-    src = Image.open(ICON_SOURCE).convert("RGBA")
+    src = load_source_icon()
     for s in (128, 48):
         src.resize((s, s), Image.LANCZOS).save(os.path.join(ICONS, f"icon{s}.png"), "PNG")
     make_toolbar_icon(src, 16, fill_ratio=0.92).save(os.path.join(ICONS, "icon16.png"), "PNG")

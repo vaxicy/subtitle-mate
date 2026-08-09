@@ -12,10 +12,29 @@
 
 body {
   width: 230px;
+  max-height: 380px;
+  overflow-y: auto;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Custom scrollbar: keep thin track, subtle thumb */
+body::-webkit-scrollbar {
+  width: 6px;
+}
+body::-webkit-scrollbar-track {
+  background: transparent;
+}
+body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+body::-webkit-scrollbar-thumb:hover {
+  background: #FFB3B3;
 }
 
 .card { padding: 10px; }
@@ -135,7 +154,7 @@ body {
 .saved {
   position: fixed;
   left: 50%;
-  bottom: 10px;
+  bottom: 6px;
   transform: translateX(-50%);
   font-size: 11px;
   color: #fff;

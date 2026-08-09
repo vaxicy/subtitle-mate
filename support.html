@@ -90,23 +90,31 @@
           paypalBtn: '用 PayPal 付款',
         },
       };
-      const lang = (function () {
+      async function detectLang() {
         try {
           const params = new URL(window.location.href).searchParams;
           const fromUrl = params.get('lang');
           if (fromUrl === 'en' || fromUrl === 'zh') return fromUrl;
         } catch (e) {}
+        try {
+          const res = await chrome.storage.sync.get('sm_uiLang');
+          const stored = res && res.sm_uiLang;
+          if (stored === 'en' || stored === 'zh') return stored;
+        } catch (e) {}
         const stored = localStorage.getItem('sm_uiLang');
         if (stored === 'en' || stored === 'zh') return stored;
         const nav = (navigator.language || 'en').toLowerCase();
         return nav.startsWith('zh') ? 'zh' : 'en';
+      }
+
+      (async function () {
+        const lang = await detectLang();
+        const t = I18N[lang];
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        document.getElementById('title').textContent = t.title;
+        document.getElementById('wechatNote').textContent = t.wechatNote;
+        document.getElementById('paypalBtn').textContent = t.paypalBtn;
       })();
-      const t = I18N[lang];
-      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
-      document.getElementById('title').textContent = t.title;
-      document.getElementById('wechatNote').textContent = t.wechatNote;
-      document.getElementById('paypalBtn').textContent = t.paypalBtn;
-    })();
   </script>
 </body>
 </html>
