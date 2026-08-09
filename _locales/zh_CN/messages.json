@@ -1,6 +1,6 @@
 {
-  "ext_name": { "message": "SubtitleMate", "description": "Extension name" },
+  "ext_name": { "message": "SubtitleMate for YouTube", "description": "Extension name" },
   "ext_short_name": { "message": "SubtitleMate", "description": "Short name" },
-  "ext_description": { "message": "在 YouTube 上自动开启字幕、按偏好打开对应语言翻译字幕或英语（自动生成）字幕，并为每个视频自动设置自定义播放速度。一次设置，无需逐视频手动调整。", "description": "Store listing description" },
+  "ext_description": { "message": "在 YouTube 自动开启字幕，按需启用翻译字幕或英语（自动生成），并可固定播放速度。一次设置，全站生效。", "description": "Store listing description" },
   "action_title": { "message": "SubtitleMate - 自动开启字幕", "description": "Toolbar tooltip" }
 }

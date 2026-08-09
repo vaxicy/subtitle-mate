@@ -1,15 +1,7 @@
 === 中文详细说明 ===
 
-SubtitleMate 是一款为 YouTube 设计的轻量级观看助手扩展。它会在你打开视频时自动开启字幕，并根据你的设置选择「翻译字幕」或「英语（自动生成）字幕」，同时自动将播放速度调整为你的预设倍速，无需逐部视频手动调整。
-
-安装后，只需在弹窗中打开开关、选择字幕模式、目标语言与播放速度，之后每次播放 YouTube 视频时，字幕都会自动出现在你期望的语言轨道中，速度也会自动套用。支持深色模式，界面简洁，设置即时生效。
-
-适合需要频繁观看外语视频、希望省去每次手动点开 CC 菜单和调速菜单的用户。所有配置均保存在本地，不收集个人数据。
+SubtitleMate for YouTube 是一款轻量观看助手。打开视频即自动开启字幕，按你的设置选择翻译字幕或英语（自动生成）字幕，并固定到预设播放速度。一次设置，全站生效。支持深色模式，设置本地保存，不收集个人数据。
 
 === English Detailed Description ===
 
-SubtitleMate is a lightweight Chrome extension that automatically enables YouTube captions for every video you watch and snaps playback speed to your preset rate. Choose between auto-translated captions in your preferred language or English auto-generated captions — set it once, and never manually toggle CC or the speed menu again.
-
-After installation, simply turn it on in the popup, pick your caption mode, target language, and playback speed. SubtitleMate will then automatically turn on captions, select the right track, and set the playback speed whenever you play a YouTube video. Clean UI, dark mode support, and settings apply instantly.
-
-Perfect for anyone who watches a lot of foreign-language videos and wants to skip the repetitive CC menu clicks and speed adjustments. All preferences are stored locally; no personal data is collected.
+SubtitleMate for YouTube is a lightweight viewing assistant. It auto-enables captions on every video and picks translated or English auto-generated tracks per your settings, snapping playback to your preset speed. Set once, works everywhere. Dark mode supported; preferences stay local, no personal data collected.
