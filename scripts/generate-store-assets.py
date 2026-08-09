@@ -106,15 +106,25 @@ def draw_promo(w, h, filepath):
     d.ellipse([panel_w - int(80*scale), h - int(110*scale), panel_w - int(20*scale), h - int(50*scale)], fill=ACCENT)
     d.ellipse([int(20*scale), h - int(80*scale), int(70*scale), h - int(30*scale)], fill=(0xF5, 0x6A, 0x6A))
 
-    # Icon
-    ic_sz = int(120 * scale) if not is_small else int(64 * scale * (1400/440))
+    # Icon on a white rounded card for contrast against the red panel
+    if is_small:
+        ic_sz = int(54 * scale * (1400/440))
+        pad = int(10 * scale * (1400/440))
+    else:
+        ic_sz = int(120 * scale)
+        pad = int(18 * scale)
+    card_x = int(36 * scale)
+    card_y = int(36 * scale)
+    card_sz = ic_sz + pad * 2
+    card_radius = int(card_sz * 0.22)
+    rounded_card(d, [card_x, card_y, card_x + card_sz, card_y + card_sz], card_radius, WHITE)
     ic = make_icon(ic_sz)
-    img.paste(ic, (int(36*scale), int(36*scale)), ic)
+    img.paste(ic, (card_x + pad, card_y + pad), ic)
 
-    # Title (bilingual)
+    # Title (bilingual) — placed below the icon card
     title_en = "SubtitleMate"
     title_zh = "字幕助手"
-    ty = int(120 * scale)
+    ty = card_y + card_sz + int(18 * scale)
     draw_center(d, panel_w/2, ty, title_en, font(int(30*scale), bold=True), WHITE)
     draw_center(d, panel_w/2, ty + int(34*scale), title_zh, font(int(22*scale), cjk=True), (255, 220, 220))
 
