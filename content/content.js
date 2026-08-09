@@ -118,28 +118,47 @@
 
   // ---------- step 2: select base track + translation via single API call ----------
 
-  function applyTranslateViaApi(player, targetCode) {
+  async function applyTranslateViaApi(player, targetCode) {
     const bases = pickBaseTracks(player);
-    if (!bases.length) return false;
+    if (!bases.length) {
+      console.log('[SubtitleMate] translate: no base track available in tracklist');
+      return false;
+    }
+
+    const tl = JSON.stringify(getTracklist(player).map((t) => ({
+      lc: t.languageCode || t.langCode || t.code,
+      kind: t.kind,
+      name: t.displayName || t.name,
+      isTl: !!t.translationLanguage,
+    })));
+    console.log('[SubtitleMate] translate: tracklist = ' + tl);
 
     for (const base of bases) {
       try {
         const id = trackId(base);
         if (!id) continue;
-        const baseObj = {
-          languageCode: id,
-          kind: base.kind || 'asr',
-        };
+        // Use the ORIGINAL track object from the tracklist, only nest the
+        // translation target. Building a minimal object drops required fields
+        // (vssId, name, isTranslatable, ...) and YouTube silently ignores it.
         const select = {
-          ...baseObj,
+          ...base,
           translationLanguage: { languageCode: targetCode },
         };
-        // Selected track carries translation target -> auto-translate on.
+        console.log('[SubtitleMate] translate: setOption track = ' +
+          JSON.stringify({ lc: id, kind: base.kind, target: targetCode }));
         player.setOption('captions', 'track', select);
+        // Give YouTube time to apply the track asynchronously.
+        await sleep(300);
         if (verifyTranslateApplied(player, targetCode)) {
+          console.log('[SubtitleMate] translate: confirmed base=' + id +
+            ' -> ' + targetCode);
           return true;
         }
-      } catch (_) {}
+        console.log('[SubtitleMate] translate: base=' + id + ' did not apply, trying next');
+      } catch (e) {
+        console.log('[SubtitleMate] translate: setOption threw for base=' + id +
+          ' -> ' + (e && e.message));
+      }
     }
     return false;
   }
@@ -179,17 +198,83 @@
   }
 
   function verifyTranslateApplied(player, targetCode) {
-    // Confirm the player's current track carries the requested translation.
+    // Strict check: the player's CURRENT track must carry the requested
+    // translationLanguage. We do NOT fall back to "captions are showing" —
+    // that is the old fake-success path (English captions alone would pass).
     try {
       const cur = player.getOption('captions', 'track');
       const tl = cur && cur.translationLanguage;
-      if (tl && (tl.languageCode || '').toLowerCase() === targetCode.toLowerCase()) {
-        return document.querySelectorAll('.ytp-caption-segment').length > 0;
+      const got = (tl && (tl.languageCode || tl.langCode || '') || '').toLowerCase();
+      const segments = document.querySelectorAll('.ytp-caption-segment').length > 0;
+      console.log('[SubtitleMate] verify: track.lang=' + (cur && (cur.languageCode || cur.langCode || '')) +
+        ' translationLanguage=' + got + ' want=' + targetCode + ' segments=' + segments);
+      if (got === targetCode.toLowerCase() && segments) {
+        return true;
       }
-    } catch (_) {}
-    // If read-back unreliable, accept caption segments as evidence we at least
-    // turned captions on. The translate retry loop will keep trying other bases.
-    return document.querySelectorAll('.ytp-caption-segment').length > 0;
+    } catch (e) {
+      console.log('[SubtitleMate] verify: getOption threw -> ' + (e && e.message));
+    }
+    return false;
+  }
+
+  // ---------- fallback: drive the CC menu UI ----------
+  // Used only when the API path cannot turn on translation. The CC gear ->
+  // "Auto-translate..." submenu -> language item is clicked programmatically.
+
+  async function clickSelector(sel, label) {
+    const el = document.querySelector(sel);
+    if (el) { el.click(); console.log('[SubtitleMate] UI: clicked ' + label); return true; }
+    return false;
+  }
+
+  async function openCcMenu() {
+    // CC toggle button on the player bar.
+    const ccBtn = document.querySelector('.ytp-subtitles-button');
+    if (!ccBtn) return false;
+    ccBtn.click();
+    // Menu may already be open; the gear is what we need.
+    await sleep(300);
+    return true;
+  }
+
+  async function applyTranslateViaUi(player, targetCode) {
+    // Open the settings (gear) menu, then the Subtitles row, then Auto-translate.
+    const gear = document.querySelector('.ytp-settings-button');
+    if (!gear) return false;
+    gear.click();
+    await sleep(350);
+
+    const items = Array.from(document.querySelectorAll('.ytp-menuitem'));
+    const subsItem = items.find((i) => /字幕|subtitle|caption/i.test(i.textContent || ''));
+    if (!subsItem) { gear.click(); return false; }
+    subsItem.click();
+    await sleep(350);
+
+    const items2 = Array.from(document.querySelectorAll('.ytp-menuitem'));
+    const tlItem = items2.find((i) => /自动翻译|auto.?translate/i.test(i.textContent || ''));
+    if (!tlItem) { gear.click(); return false; }
+    tlItem.click();
+    await sleep(350);
+
+    // Language list: find target by code or Chinese name.
+    const targetNames = {
+      'zh-CN': /中文|简体|chinese/i,
+      'zh-TW': /繁體|traditional/i,
+      'en': /english|英语/i,
+      'ja': /日语|japanese/i,
+      'ko': /韩语|korean/i,
+    };
+    const re = targetNames[targetCode] || new RegExp(targetCode, 'i');
+    const langItem = Array.from(document.querySelectorAll('.ytp-menuitem'))
+      .find((i) => re.test(i.textContent || ''));
+    if (langItem) {
+      langItem.click();
+      await sleep(300);
+      console.log('[SubtitleMate] UI: clicked translate target=' + targetCode);
+      return verifyTranslateApplied(player, targetCode) || document.querySelectorAll('.ytp-caption-segment').length > 0;
+    }
+    console.log('[SubtitleMate] UI: target language item not found for ' + targetCode);
+    return false;
   }
 
   // ---------- main flow ----------
@@ -202,12 +287,16 @@
     }
 
     const player = getPlayer() || (await waitForPlayer(8000));
-    if (!player) return;
+    if (!player) {
+      console.log('[SubtitleMate] player not found');
+      return;
+    }
 
     enableCaptionsApi(player);
 
     const mode = settings[K.CAPTION_MODE];
     const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
+    console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
 
     let ok = false;
     if (mode === MODE.AUTO_GENERATED) {
@@ -220,9 +309,17 @@
       ok = applyTranslateViaApi(player, targetCode);
       if (ok) {
         applied = true;
-        console.log('[SubtitleMate] auto-translate -> ' + targetCode + ' confirmed');
+        console.log('[SubtitleMate] auto-translate -> ' + targetCode + ' confirmed (API)');
       } else {
-        console.log('[SubtitleMate] API path failed, will retry');
+        // Last-resort fallback: drive the CC menu UI.
+        console.log('[SubtitleMate] API path failed, trying UI fallback');
+        ok = await applyTranslateViaUi(player, targetCode);
+        if (ok) {
+          applied = true;
+          console.log('[SubtitleMate] auto-translate -> ' + targetCode + ' confirmed (UI)');
+        } else {
+          console.log('[SubtitleMate] all paths failed, will retry');
+        }
       }
     }
   }
