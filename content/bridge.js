@@ -111,7 +111,11 @@
     return null;
   }
 
-  async function waitForPlayer(maxMs = 8000) {
+  function isRealPlayer(p) {
+    return isValidPlayer(p) && !(p instanceof HTMLElement);
+  }
+
+  async function waitForPlayer(maxMs = 15000) {
     const deadline = Date.now() + maxMs;
     while (Date.now() < deadline) {
       const p = getPlayer();
@@ -364,34 +368,186 @@
     return false;
   }
 
+  // ---------- UI fallback: simulate settings-menu clicks ----------
+
+  function getSettingsPanel() {
+    return document.querySelector('.ytp-settings-menu') ||
+           document.querySelector('.ytp-popup.ytp-settings-menu') ||
+           document.querySelector('.ytp-panel-menu') ||
+           document.querySelector('.ytp-panel');
+  }
+
+  async function waitForSettingsPanel(maxMs = 3000) {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const panel = getSettingsPanel();
+      if (panel && panel.querySelector('.ytp-menuitem')) return panel;
+      await sleep(100);
+    }
+    return null;
+  }
+
+  function findMenuItem(panel, patterns) {
+    if (!panel) return null;
+    const items = panel.querySelectorAll('.ytp-menuitem');
+    for (const item of items) {
+      const labelEl = item.querySelector('.ytp-menuitem-label') || item;
+      const text = (labelEl.textContent || '').toLowerCase().replace(/[()（）]/g, '');
+      for (const pat of patterns) {
+        const p = pat.toLowerCase().replace(/[()（）]/g, '');
+        if (text.includes(p)) return item;
+      }
+    }
+    return null;
+  }
+
+  function clickSettingsButton() {
+    const btn = document.querySelector('.ytp-settings-button.ytp-button') ||
+                document.querySelector('button[data-tooltip-target-id="ytp-settings-button"]') ||
+                document.querySelector('button[aria-label*="设置"]') ||
+                document.querySelector('button[title*="settings"]') ||
+                document.querySelector('button[aria-label*="settings"]');
+    if (btn) {
+      console.log('[SubtitleMate] ui: clicking settings button');
+      btn.click();
+      return true;
+    }
+    console.log('[SubtitleMate] ui: settings button not found');
+    return false;
+  }
+
+  function closeSettingsPanel() {
+    const btn = document.querySelector('.ytp-settings-button.ytp-button');
+    if (btn) btn.click();
+  }
+
+  async function openSubtitlesMenu() {
+    if (!clickSettingsButton()) return false;
+    const panel = await waitForSettingsPanel(3000);
+    if (!panel) {
+      console.log('[SubtitleMate] ui: settings panel did not appear');
+      return false;
+    }
+    const item = findMenuItem(panel, ['subtitles/cc', 'subtitles', 'cc', '字幕', 'caption']);
+    if (!item) {
+      console.log('[SubtitleMate] ui: subtitles menu item not found. labels=' +
+        Array.from(panel.querySelectorAll('.ytp-menuitem-label')).map((el) => el.textContent).join(' | '));
+      closeSettingsPanel();
+      return false;
+    }
+    console.log('[SubtitleMate] ui: clicking subtitles menu item: ' +
+      (item.querySelector('.ytp-menuitem-label') || item).textContent);
+    item.click();
+    await sleep(600);
+    return true;
+  }
+
+  async function selectSubtitlesMenuItem(patterns, maxMs = 3000) {
+    const panel = await waitForSettingsPanel(maxMs);
+    if (!panel) {
+      console.log('[SubtitleMate] ui: subtitles panel did not appear');
+      return false;
+    }
+    const item = findMenuItem(panel, patterns);
+    if (!item) {
+      console.log('[SubtitleMate] ui: menu item not found. patterns=' + JSON.stringify(patterns) +
+        ' labels=' + Array.from(panel.querySelectorAll('.ytp-menuitem-label')).map((el) => el.textContent).join(' | '));
+      closeSettingsPanel();
+      return false;
+    }
+    console.log('[SubtitleMate] ui: clicking menu item: ' +
+      (item.querySelector('.ytp-menuitem-label') || item).textContent);
+    item.click();
+    await sleep(600);
+    return true;
+  }
+
+  function targetLanguageLabels(code) {
+    const map = {
+      'zh-CN': ['chinese simplified', 'chinese china', '中文简体', '中文中国', '简体中文', '中文'],
+      'zh-TW': ['chinese traditional', '中文繁體', '繁体中文', '中文'],
+      'ja':    ['japanese', '日语', '日本語'],
+      'ko':    ['korean', '韩语', '韓語', '한국어'],
+      'es':    ['spanish', '西班牙语', '西班牙文'],
+      'fr':    ['french', '法语', '法文', 'français'],
+      'de':    ['german', '德语', '德文', 'deutsch'],
+      'ru':    ['russian', '俄语', '俄文', 'русский'],
+      'pt':    ['portuguese', '葡萄牙语', 'português'],
+      'en':    ['english', '英语', '英文'],
+    };
+    return map[code] || [code];
+  }
+
+  async function applyViaUi(mode, targetLang) {
+    const ok = await openSubtitlesMenu();
+    if (!ok) {
+      // If settings menu didn't open, try direct CC button as last resort.
+      if (clickCcButtonIfPresent()) {
+        await sleep(1000);
+        return document.querySelectorAll('.ytp-caption-segment').length > 0;
+      }
+      return false;
+    }
+
+    if (mode === 'auto-generated') {
+      const patterns = ['english auto-generated', 'english auto generated', 'english', '英语自动生成', '英语', '英文'];
+      if (await selectSubtitlesMenuItem(patterns, 3000)) {
+        await sleep(800);
+        const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
+        console.log('[SubtitleMate] ui: auto-generated result segments=' + on);
+        return on;
+      }
+      return false;
+    }
+
+    // translate mode: settings -> subtitles -> auto-translate -> target language
+    if (await selectSubtitlesMenuItem(['auto-translate', 'auto translate', '自动翻译', '翻译'], 3000)) {
+      const patterns = targetLanguageLabels(targetLang);
+      if (await selectSubtitlesMenuItem(patterns, 3000)) {
+        await sleep(800);
+        const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
+        console.log('[SubtitleMate] ui: translate result segments=' + on);
+        return on;
+      }
+    }
+    return false;
+  }
+
+  // ---------- main handler ----------
+
   async function handleApply(payload) {
     const mode = payload.mode;
     const targetLang = payload.targetLang || 'zh-CN';
 
-    let player = getPlayer() || (await waitForPlayer(10000));
-    if (!player) {
-      return { ok: false, info: 'player not found after wait' };
-    }
+    // Try real player API first.
+    const player = getPlayer() || (await waitForPlayer(15000));
+    if (player && isRealPlayer(player)) {
+      enableCaptionsApi(player);
 
-    enableCaptionsApi(player);
-
-    if (mode === 'auto-generated') {
-      let ok = await applyAutoGeneratedViaApi(player);
-      if (!ok && clickCcButtonIfPresent()) {
-        await sleep(800);
-        player = getPlayer() || player;
-        ok = await applyAutoGeneratedViaApi(player);
+      if (mode === 'auto-generated') {
+        const ok = await applyAutoGeneratedViaApi(player);
+        if (ok) return { ok: true, info: 'English (auto-generated) enabled via API' };
+      } else {
+        const ok = await applyTranslateViaApi(player, targetLang);
+        if (ok) return { ok: true, info: 'translated to ' + targetLang + ' via API' };
       }
-      return { ok, info: ok ? 'English (auto-generated) enabled' : 'auto-generated API failed' };
+      console.log('[SubtitleMate] API approach failed, trying UI fallback');
+    } else if (player) {
+      console.log('[SubtitleMate] player is only a DOM element, skipping API and using UI fallback');
+    } else {
+      console.log('[SubtitleMate] player not found after wait, trying UI fallback');
     }
 
-    let ok = await applyTranslateViaApi(player, targetLang);
-    if (!ok && clickCcButtonIfPresent()) {
-      await sleep(800);
-      player = getPlayer() || player;
-      ok = await applyTranslateViaApi(player, targetLang);
+    // Pure DOM-based fallback: simulate settings-button clicks.
+    const uiOk = await applyViaUi(mode, targetLang);
+    if (uiOk) {
+      return {
+        ok: true,
+        info: (mode === 'auto-generated' ? 'English (auto-generated)' : 'translated to ' + targetLang) + ' via UI',
+      };
     }
-    return { ok, info: ok ? 'translated to ' + targetLang : 'translate API failed' };
+
+    return { ok: false, info: 'all approaches failed (API + UI)' };
   }
 
   window.addEventListener('message', async (event) => {
