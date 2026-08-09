@@ -54,7 +54,7 @@
       applyTriggered: 'Applying…',
       on: 'ON', off: 'OFF',
       saved: 'Saved',
-      supportLink: 'If SubtitleMate helps you, consider supporting the developer.',
+      supportLink: 'Support the developer',
     },
     zh: {
       name: '字幕助手',
@@ -72,7 +72,7 @@
       applyTriggered: '正在应用…',
       on: '开', off: '关',
       saved: '已保存',
-      supportLink: '如果 SubtitleMate 对你有帮助，欢迎支持开发者。',
+      supportLink: '支持开发者',
     },
   };
 
