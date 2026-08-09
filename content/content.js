@@ -15,6 +15,9 @@
 //      and confirm caption segments render on screen. Retry across base tracks.
 
 (function () {
+  console.log('[SubtitleMate] content script loaded v' +
+    (chrome.runtime && chrome.runtime.getManifest && chrome.runtime.getManifest().version || '?'));
+
   const K = {
     AUTO_CAPTIONS: 'sm_autoCaptions',
     CAPTION_MODE: 'sm_captionMode',
