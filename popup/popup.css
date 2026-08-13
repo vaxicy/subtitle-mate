@@ -91,7 +91,7 @@ body::-webkit-scrollbar-thumb:hover {
   margin-bottom: 8px;
 }
 
-.row-title { font-size: 15px; font-weight: 700; }
+.row-title { font-size: 14px; font-weight: 600; color: var(--text); }
 
 .divider {
   border: none;
