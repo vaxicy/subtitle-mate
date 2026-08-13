@@ -513,18 +513,26 @@
       return false;
     }
 
-    await sleep(900);
+    // YouTube requests the translated subtitle stream from the server after the
+    // track is set; that network round-trip takes time.  Give it room to settle
+    // before verifying, otherwise we falsely report failure and retry forever.
+    const settleMs = (mode === 'translate') ? 2800 : 1000;
+    await sleep(settleMs);
 
     try {
       const cur = player.getOption('captions', 'track');
       const curTl = readTranslationLanguage(cur).toLowerCase();
       const curBase = (cur && (cur.languageCode || cur.langCode || cur.code || '')).toLowerCase();
       const domSegments = document.querySelectorAll('.ytp-caption-segment').length;
-      const ok = domSegments > 0 && (
+      // Success criteria: the API read-back already reflects the requested
+      // state.  We do NOT require the DOM to show Chinese segments yet, because
+      // the translation stream may still be loading server-side.
+      const apiOk =
         (mode === 'translate' && curTl === (targetLang || 'zh-CN').toLowerCase()) ||
-        (mode === 'auto-generated' && /en/.test(curBase) && !curTl)
-      );
-      console.log('[SubtitleMate] api: verify segments=' + domSegments + ' base=' + curBase + ' tl=' + curTl + ' ok=' + ok);
+        (mode === 'auto-generated' && /en/.test(curBase) && !curTl);
+      const ok = apiOk || domSegments > 0;
+      console.log('[SubtitleMate] api: verify segments=' + domSegments + ' base=' + curBase +
+        ' tl=' + curTl + ' apiOk=' + apiOk + ' ok=' + ok);
       return ok;
     } catch (e) {
       console.log('[SubtitleMate] api: verify threw -> ' + (e && e.message));

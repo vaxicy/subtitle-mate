@@ -155,10 +155,13 @@
     if (running || applied || !isEnabled()) return;
     running = true;
     try {
-      for (let i = 0; i < 15; i++) {
+      // Fewer, gentler retries with exponential back-off so we don't keep
+      // hammering YouTube (which would reset the translation stream and make
+      // the Chinese captions never finish loading).
+      for (let i = 0; i < 5; i++) {
         await applyOnce();
         if (applied) return;
-        await sleep(500 + i * 200);
+        await sleep(2000 + i * 2000);
       }
       // Exhausted retries without success -> definitive failure.
       console.log('[SubtitleMate] failed after retries; applied=' + applied);
@@ -203,10 +206,15 @@
            document.querySelector('video');
   }
 
+  let observerCooldownUntil = 0;
   const observer = new MutationObserver(() => {
-    if (!applied && isEnabled() && getVideo()) {
-      runWithRetries();
-    }
+    if (applied || !isEnabled() || !getVideo()) return;
+    const now = Date.now();
+    // Throttle DOM-triggered runs: at most one every 2s, so a burst of
+    // YouTube DOM mutations can't spam runWithRetries.
+    if (now < observerCooldownUntil) return;
+    observerCooldownUntil = now + 2000;
+    runWithRetries();
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
