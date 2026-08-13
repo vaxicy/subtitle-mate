@@ -98,7 +98,8 @@
   // ---------- state comparison ----------
 
   function stateMatchesTarget(st, mode, targetCode) {
-    if (!st || !st.ok) return false;
+    if (!st || !st.ok) return !!st.panelSatisfied;
+    if (st.panelSatisfied) return true;
     if (mode === MODE.AUTO_GENERATED) {
       // Expect an English base track with no translation.
       if (!st.baseLang || st.baseLang.indexOf('en') !== 0) return false;
@@ -139,8 +140,9 @@
     console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
 
     // First: read the actual state. If YouTube already shows the right
-    // captions/translation, just mark success and do nothing more.
-    const currentState = await sendBridgeCommand('GET_STATE', {}, 5000);
+    // captions/translation (via API or via the open settings panel), just mark
+    // success and do nothing more.
+    const currentState = await sendBridgeCommand('GET_STATE', { mode: mode, targetLang: targetCode }, 5000);
     console.log('[SubtitleMate] current state -> ' + JSON.stringify(currentState));
     if (stateMatchesTarget(currentState, mode, targetCode)) {
       const speedOk = speedMatchesTarget(currentState);

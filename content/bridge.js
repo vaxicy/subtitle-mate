@@ -451,9 +451,20 @@
   }
 
   // Full current state used by content script to decide whether to re-apply.
-  function getCurrentState() {
+  function getCurrentState(payload) {
+    const p = payload || {};
+    const mode = p.mode || 'translate';
+    const targetLang = p.targetLang || 'zh-CN';
+    const panel = readPanelSatisfied(mode, targetLang);
     const player = getPlayer();
-    if (!player || !canUseApi(player)) return { ok: false, hasPlayer: false };
+    if (!player || !canUseApi(player)) {
+      return {
+        ok: false,
+        hasPlayer: false,
+        panelSatisfied: panel.satisfied,
+        panelText: panel.text,
+      };
+    }
     try {
       const cur = player.getOption('captions', 'track');
       const video = getVideo();
@@ -465,11 +476,19 @@
         translationLanguage: readTranslationLanguage(cur).toLowerCase(),
         isTranslation: !!(cur && cur.translationLanguage),
         captionSegments: document.querySelectorAll('.ytp-caption-segment').length,
+        panelSatisfied: panel.satisfied,
+        panelText: panel.text,
       };
       if (video) state.playbackRate = Number(video.playbackRate) || 1;
       return state;
     } catch (e) {
-      return { ok: false, hasPlayer: true, error: (e && e.message) || 'read failed' };
+      return {
+        ok: false,
+        hasPlayer: true,
+        error: (e && e.message) || 'read failed',
+        panelSatisfied: panel.satisfied,
+        panelText: panel.text,
+      };
     }
   }
 
@@ -501,8 +520,54 @@
     return false;
   }
 
+  // Read the right-side text of the top-level "Subtitles/CC / 字幕" row in the
+  // open settings menu. YouTube shows the current caption choice there (e.g.
+  // "英语（自动生成）>> 中文（简体）"), so we can treat that as success.
+  function readSubtitlesRowContent(panel) {
+    if (!panel) return '';
+    const items = Array.from(panel.querySelectorAll('.ytp-menuitem'));
+    for (const item of items) {
+      const labelEl = item.querySelector('.ytp-menuitem-label') || item;
+      const labelText = normalizeMenuText(labelEl.textContent);
+      if (/subtitles|cc|caption|字幕/.test(labelText)) {
+        const contentEl = item.querySelector('.ytp-menuitem-content');
+        return contentEl ? contentEl.textContent : item.textContent;
+      }
+    }
+    return '';
+  }
+
+  function panelContentMatchesTarget(text, mode, targetLang) {
+    const t = normalizeMenuText(text || '');
+    if (!t || /off|关闭/.test(t)) return false;
+    if (mode === 'auto-generated') {
+      return /english|英语/.test(t) && /auto|自动|asr/.test(t) && !/>>|→|translat|翻译/.test(t);
+    }
+    const want = targetLanguageLabels(targetLang);
+    const exact = (want.exact || []).map(normalizeMenuText);
+    const fallback = (want.fallback || []).map(normalizeMenuText);
+    const exclude = (want.exclude || []).map(normalizeMenuText);
+    if (exclude.some((e) => t.includes(e))) return false;
+    return exact.some((p) => t.includes(p)) || fallback.some((p) => t.includes(p));
+  }
+
+  function readPanelSatisfied(mode, targetLang) {
+    const panel = getSettingsPanel();
+    if (!panel) return { satisfied: false, text: '' };
+    if (panelHasSelectedMatch(panel, mode, targetLang)) {
+      return { satisfied: true, text: 'selected menu item matches target' };
+    }
+    const text = readSubtitlesRowContent(panel);
+    if (panelContentMatchesTarget(text, mode, targetLang)) {
+      return { satisfied: true, text: text };
+    }
+    return { satisfied: false, text: text };
+  }
+
   // Verify via DOM that the requested state is actually on screen.
   function isAlreadySatisfiedDom(mode, targetLang) {
+    const panelResult = readPanelSatisfied(mode, targetLang);
+    if (panelResult.satisfied) return true;
     if (document.querySelectorAll('.ytp-caption-segment').length === 0) return false;
     // We can't read the translation language purely from DOM; open the panel
     // only to check is too costly, so rely on a quick API read instead.
@@ -740,7 +805,7 @@
     }
 
     if (data.type === 'GET_STATE') {
-      const result = getCurrentState();
+      const result = getCurrentState(data.payload || {});
       window.postMessage({
         source: 'subtitlemate-bridge',
         type: 'RESULT',
