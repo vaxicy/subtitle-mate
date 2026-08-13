@@ -95,6 +95,29 @@
     });
   }
 
+  // ---------- state comparison ----------
+
+  function stateMatchesTarget(st, mode, targetCode) {
+    if (!st || !st.ok) return false;
+    if (mode === MODE.AUTO_GENERATED) {
+      // Expect an English base track with no translation.
+      if (!st.baseLang || st.baseLang.indexOf('en') !== 0) return false;
+      if (st.isTranslation) return false;
+    } else {
+      // Expect a track translated into the chosen language.
+      if (!st.isTranslation) return false;
+      if (st.translationLanguage !== (targetCode || 'zh-CN').toLowerCase()) return false;
+    }
+    return true;
+  }
+
+  function speedMatchesTarget(st) {
+    if (!st || !st.ok || !settings[K.AUTO_PLAYBACK_SPEED]) return true;
+    const targetRate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
+    if (typeof st.playbackRate !== 'number') return false;
+    return Math.abs(st.playbackRate - targetRate) < 0.01;
+  }
+
   // ---------- main flow ----------
 
   async function applyOnce() {
@@ -114,6 +137,22 @@
     const mode = settings[K.CAPTION_MODE];
     const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
     console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
+
+    // First: read the actual state. If YouTube already shows the right
+    // captions/translation, just mark success and do nothing more.
+    const currentState = await sendBridgeCommand('GET_STATE', {}, 5000);
+    console.log('[SubtitleMate] current state -> ' + JSON.stringify(currentState));
+    if (stateMatchesTarget(currentState, mode, targetCode)) {
+      const speedOk = speedMatchesTarget(currentState);
+      if (speedOk) {
+        applied = true;
+        try { observer.disconnect(); } catch (_) {}
+        console.log('[SubtitleMate] success: captions already satisfy target; no action needed');
+        return;
+      }
+      // Captions are right but speed is wrong: skip APPLY, just set speed below.
+      console.log('[SubtitleMate] captions already correct, only speed needs adjustment');
+    }
 
     const result = await sendBridgeCommand('APPLY', {
       mode: mode,
@@ -138,8 +177,9 @@
       }
     }
 
-    // Auto-set playback speed (independent of caption success).
-    if (settings && settings[K.AUTO_PLAYBACK_SPEED]) {
+    // Auto-set playback speed (independent of caption success), but only if
+    // it is not already correct.
+    if (settings && settings[K.AUTO_PLAYBACK_SPEED] && !speedMatchesTarget(currentState)) {
       const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
       const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
       console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));

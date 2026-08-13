@@ -450,6 +450,29 @@
     }
   }
 
+  // Full current state used by content script to decide whether to re-apply.
+  function getCurrentState() {
+    const player = getPlayer();
+    if (!player || !canUseApi(player)) return { ok: false, hasPlayer: false };
+    try {
+      const cur = player.getOption('captions', 'track');
+      const video = getVideo();
+      const state = {
+        ok: true,
+        hasPlayer: true,
+        hasTrack: !!(cur && (cur.languageCode || cur.langCode || cur.code)),
+        baseLang: (cur && (cur.languageCode || cur.langCode || cur.code) || '').toLowerCase(),
+        translationLanguage: readTranslationLanguage(cur).toLowerCase(),
+        isTranslation: !!(cur && cur.translationLanguage),
+        captionSegments: document.querySelectorAll('.ytp-caption-segment').length,
+      };
+      if (video) state.playbackRate = Number(video.playbackRate) || 1;
+      return state;
+    } catch (e) {
+      return { ok: false, hasPlayer: true, error: (e && e.message) || 'read failed' };
+    }
+  }
+
   // Scan the currently open subtitles panel for a selected (aria-checked) item
   // whose label matches the target language / mode. Used to avoid re-clicking.
   function panelHasSelectedMatch(panel, mode, targetLang) {
@@ -707,6 +730,17 @@
 
     if (data.type === 'SET_PLAYBACK_RATE') {
       const result = await handleSetPlaybackRate(data.payload || {});
+      window.postMessage({
+        source: 'subtitlemate-bridge',
+        type: 'RESULT',
+        id: data.id,
+        payload: result,
+      }, '*');
+      return;
+    }
+
+    if (data.type === 'GET_STATE') {
+      const result = getCurrentState();
       window.postMessage({
         source: 'subtitlemate-bridge',
         type: 'RESULT',
