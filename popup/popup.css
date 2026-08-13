@@ -85,13 +85,19 @@ body::-webkit-scrollbar-thumb:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px;
+  padding: 11px 12px;
   background: var(--surface);
   border-radius: 10px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
-.row-title { font-size: 13px; font-weight: 600; }
+.row-title { font-size: 15px; font-weight: 700; }
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 2px 8px;
+}
 
 .toggle {
   position: relative;

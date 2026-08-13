@@ -279,7 +279,8 @@ def draw_popup_mock(lang):
     y += int(6 * scale)           # margin
     y += int(70 * scale)          # target lang block
     y += int(2 * scale)           # margin
-    y += int(58 * scale)          # checks (3 items)
+    y += int(16 * scale)          # divider
+    y += int(58 * scale)          # checks (2 items + spacing)
     y += int(8 * scale)           # margin
     y += int(40 * scale)          # speed block
     y += int(10 * scale)          # top margin before support
@@ -311,11 +312,11 @@ def draw_popup_mock(lang):
            font=font(int(10*scale), cjk=True), fill=SECONDARY)
     y += int(30 * scale) + int(6 * scale)
 
-    # auto captions row
+    # auto captions row (master toggle — just "Enable")
     rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(46*scale)], int(10*scale), SURFACE)
-    lbl = "Auto-enable captions" if en else "自动开启字幕"
+    lbl = "Enable" if en else "启用"
     d.text((inner_x + int(12*scale), y + int(14*scale)), lbl,
-           font=font(int(13*scale), bold=True, cjk=not en), fill=TEXT)
+           font=font(int(15*scale), bold=True, cjk=not en), fill=TEXT)
     tw, th = int(40*scale), int(22*scale)
     tx = inner_x + inner_w - tw - int(10*scale)
     ty = y + int(12*scale)
@@ -354,10 +355,14 @@ def draw_popup_mock(lang):
     d.polygon([(cx-r, cy-r+1), (cx, cy+r+1), (cx+r, cy-r+1)], fill=SECONDARY)
     y += int(38 * scale) + int(2 * scale)
 
-    # checks
+    # divider before checks
+    y += int(4 * scale)
+    d.line([(inner_x, y), (inner_x + inner_w, y)], fill=BORDER, width=1)
+    y += int(12 * scale)
+
+    # checks (two items)
     check_items = [
-        "Enable automatically on YouTube" if en else "在 YouTube 上自动启用",
-        "Auto-reload page if it fails" if en else "应用失败时自动刷新页面",
+        "Auto-enable on YouTube" if en else "打开 YouTube 时自动开启字幕",
         "Auto-set playback speed" if en else "自动设置播放速度",
     ]
     for c in check_items:
