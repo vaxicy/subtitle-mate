@@ -127,7 +127,15 @@
       try { observer.disconnect(); } catch (_) {}
       console.log('[SubtitleMate] success: ' + result.info);
     } else {
-      console.log('[SubtitleMate] failed: ' + (result && result.info || 'unknown'));
+      const info = (result && result.info) || 'unknown';
+      console.log('[SubtitleMate] failed: ' + info);
+      // Surface a hint for the user when the multilingual-auto-translate path
+      // didn't take: it usually means either (a) the video has no caption
+      // tracks yet, or (b) the "auto-translate → Chinese" menu entry needs a
+      // manual first click.  Check the console for "[SubtitleMate] tracklist".
+      if (!applied) {
+        console.log('[SubtitleMate] hint: open DevTools console and look for "[SubtitleMate] tracklist" + "[SubtitleMate] api: verify" lines to diagnose. If tracklist is empty, captions are not available for this video.');
+      }
     }
 
     // Auto-set playback speed (independent of caption success).

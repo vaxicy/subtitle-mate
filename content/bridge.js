@@ -231,6 +231,13 @@
       console.log('[SubtitleMate] ui: settings panel did not appear');
       return false;
     }
+    // Long multilingual videos render the "Subtitles/CC" entry after a delay;
+    // scroll through the panel to force all items into the DOM before matching.
+    const scroller = panel.querySelector('.ytp-panel-menu') || panel;
+    for (let i = 0; i < 4; i++) {
+      scroller.scrollTop = scroller.scrollHeight;
+      await sleep(150);
+    }
     const item = findMenuItem(panel, ['subtitles/cc', 'subtitles', 'cc', '字幕', 'caption']);
     if (!item) {
       console.log('[SubtitleMate] ui: subtitles menu item not found. labels=' +
@@ -245,13 +252,34 @@
     return true;
   }
 
+  // Scroll the panel so that any lazily-rendered menu items (auto-translate
+  // often sits at the very bottom of a long multilingual list) become part of
+  // the DOM, then look for the target item.
   async function selectSubtitlesMenuItem(patterns, maxMs = 3000) {
     const panel = await waitForSettingsPanel(maxMs);
     if (!panel) {
       console.log('[SubtitleMate] ui: subtitles panel did not appear');
       return false;
     }
-    const item = findMenuItem(panel, patterns);
+    // The scrollable container is the panel itself or an inner .ytp-panel-menu.
+    const scroller = panel.querySelector('.ytp-panel-menu') || panel;
+    const deadline = Date.now() + maxMs;
+    let item = findMenuItem(panel, patterns);
+    while (!item && Date.now() < deadline) {
+      // Nudge the scroll position to force YouTube to render more items.
+      const before = scroller.scrollTop;
+      scroller.scrollTop = scroller.scrollHeight; // jump to bottom first
+      await sleep(200);
+      if (scroller.scrollTop === before && scroller.scrollTop === 0 &&
+          scroller.scrollHeight <= scroller.clientHeight) {
+        // Nothing to scroll; bail out of the loop to avoid spinning forever.
+        break;
+      }
+      // Also try stepping down to trigger mid-list rendering.
+      scroller.scrollTop = before + scroller.clientHeight;
+      await sleep(200);
+      item = findMenuItem(panel, patterns);
+    }
     if (!item) {
       console.log('[SubtitleMate] ui: menu item not found. patterns=' + JSON.stringify(patterns) +
         ' labels=' + Array.from(panel.querySelectorAll('.ytp-menuitem-label')).map((el) => el.textContent).join(' | '));
@@ -267,7 +295,7 @@
   function targetLanguageLabels(code) {
     const map = {
       'zh-CN': {
-        exact:    ['chinese simplified', 'chinese china', '中文简体', '中文中国', '简体中文'],
+        exact:    ['chinese simplified', 'chinese china', 'chinese s', '中文简体', '中文中国', '中文（简体）', '中文（中国）', '简体中文', '简体'],
         fallback: ['中文'],
         exclude:  ['traditional', '繁体', '繁體'],
       },
@@ -370,12 +398,27 @@
           console.log('[SubtitleMate] ui: target already selected after auto-translate, skip');
           return document.querySelectorAll('.ytp-caption-segment').length > 0;
         }
+        // The target-language list can also be long; selectSubtitlesMenuItem
+        // already scrolls, but nudge once more so the Chinese entry is present.
+        const scroller2 = (panel2 && panel2.querySelector('.ytp-panel-menu')) || panel2;
+        if (scroller2) {
+          for (let i = 0; i < 4; i++) {
+            scroller2.scrollTop = scroller2.scrollHeight;
+            await sleep(150);
+          }
+        }
         const patterns = targetLanguageLabels(targetLang);
-        if (await selectSubtitlesMenuItem(patterns, 3000)) {
+        if (await selectSubtitlesMenuItem(patterns, 4000)) {
           await sleep(800);
           const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
           console.log('[SubtitleMate] ui: translate result segments=' + on);
           return on;
+        }
+        // If the Chinese entry still wasn't found, log what IS available so the
+        // user can see the exact label YouTube uses for their locale.
+        if (panel2) {
+          console.log('[SubtitleMate] ui: target lang not found. labels=' +
+            Array.from(panel2.querySelectorAll('.ytp-menuitem-label')).map((el) => el.textContent).join(' | '));
         }
       }
       return false;
@@ -463,14 +506,29 @@
 
   function pickBaseTrack(tracks) {
     if (!tracks || !tracks.length) return null;
+    const norm = (tr) => (tr.languageCode || tr.langCode || tr.code || '').toLowerCase();
+    const isTranslation = (tr) => !!tr.translationLanguage;
+
+    // Log the full tracklist so failures are diagnosable from the console.
+    console.log('[SubtitleMate] tracklist (' + tracks.length + '): ' +
+      tracks.map((tr) => norm(tr) + (tr.kind ? '/' + (tr.kind || '') : '') +
+        (isTranslation(tr) ? '/translation-of-' + ((tr.translationLanguage && (tr.translationLanguage.languageCode || tr.translationLanguage.langCode)) || '?') : '')).join(', '));
+
+    // 1) Preferred: English ASR (auto-generated) — exists on nearly all videos.
     let t = tracks.find((tr) =>
-      (tr.languageCode || '').toLowerCase() === 'en' &&
-      (tr.kind || '').toLowerCase() === 'asr');
+      norm(tr) === 'en' && (tr.kind || '').toLowerCase() === 'asr');
     if (t) return t;
-    t = tracks.find((tr) => (tr.languageCode || '').toLowerCase() === 'en');
+    // 2) Any English base track (manual or ASR).
+    t = tracks.find((tr) => norm(tr) === 'en');
     if (t) return t;
-    t = tracks.find((tr) => !tr.translationLanguage);
+    // 3) On multilingual videos the UI "auto-translate" needs a non-translation
+    //    base track.  Prefer any ASR track regardless of language.
+    t = tracks.find((tr) => (tr.kind || '').toLowerCase() === 'asr' && !isTranslation(tr));
     if (t) return t;
+    // 4) Any non-translation track (the base tier, not an already-translated one).
+    t = tracks.find((tr) => !isTranslation(tr));
+    if (t) return t;
+    // 5) Last resort: first available.
     return tracks[0];
   }
 
@@ -504,14 +562,38 @@
     const track = buildTrackForMode(baseTrack, mode, targetLang);
     if (!track) return false;
 
-    try {
-      player.setOption('captions', 'track', track);
-      console.log('[SubtitleMate] api: setOption track -> ' +
-        (track.languageCode || '?') + ' translation=' + (track.translationLanguage?.languageCode || 'none'));
-    } catch (e) {
-      console.log('[SubtitleMate] api: setOption threw -> ' + (e && e.message));
-      return false;
-    }
+    const applySetOption = async () => {
+      try {
+        player.setOption('captions', 'track', track);
+        console.log('[SubtitleMate] api: setOption track -> ' +
+          (track.languageCode || '?') + ' translation=' + (track.translationLanguage?.languageCode || 'none'));
+        return true;
+      } catch (e) {
+        console.log('[SubtitleMate] api: setOption threw -> ' + (e && e.message));
+        return false;
+      }
+    };
+
+    // Some YouTube builds silently discard the first setOption call (the caption
+    // module is still initializing).  Issue it, verify, and if the read-back
+    // doesn't reflect our request, retry once before giving up.
+    if (!(await applySetOption())) return false;
+
+    const verify = () => {
+      try {
+        const cur = player.getOption('captions', 'track');
+        const curTl = readTranslationLanguage(cur).toLowerCase();
+        const curBase = (cur && (cur.languageCode || cur.langCode || cur.code || '')).toLowerCase();
+        const domSegments = document.querySelectorAll('.ytp-caption-segment').length;
+        const apiOk =
+          (mode === 'translate' && curTl === (targetLang || 'zh-CN').toLowerCase()) ||
+          (mode === 'auto-generated' && /en/.test(curBase) && !curTl);
+        return { apiOk, domSegments, curBase, curTl };
+      } catch (e) {
+        console.log('[SubtitleMate] api: verify threw -> ' + (e && e.message));
+        return { apiOk: false, domSegments: 0, curBase: '', curTl: '' };
+      }
+    };
 
     // YouTube requests the translated subtitle stream from the server after the
     // track is set; that network round-trip takes time.  Give it room to settle
@@ -519,25 +601,20 @@
     const settleMs = (mode === 'translate') ? 2800 : 1000;
     await sleep(settleMs);
 
-    try {
-      const cur = player.getOption('captions', 'track');
-      const curTl = readTranslationLanguage(cur).toLowerCase();
-      const curBase = (cur && (cur.languageCode || cur.langCode || cur.code || '')).toLowerCase();
-      const domSegments = document.querySelectorAll('.ytp-caption-segment').length;
-      // Success criteria: the API read-back already reflects the requested
-      // state.  We do NOT require the DOM to show Chinese segments yet, because
-      // the translation stream may still be loading server-side.
-      const apiOk =
-        (mode === 'translate' && curTl === (targetLang || 'zh-CN').toLowerCase()) ||
-        (mode === 'auto-generated' && /en/.test(curBase) && !curTl);
-      const ok = apiOk || domSegments > 0;
-      console.log('[SubtitleMate] api: verify segments=' + domSegments + ' base=' + curBase +
-        ' tl=' + curTl + ' apiOk=' + apiOk + ' ok=' + ok);
-      return ok;
-    } catch (e) {
-      console.log('[SubtitleMate] api: verify threw -> ' + (e && e.message));
-      return false;
+    let v = verify();
+    if (!v.apiOk) {
+      // First attempt didn't stick — retry the setOption once and re-verify.
+      console.log('[SubtitleMate] api: first verify not satisfied (base=' + v.curBase +
+        ' tl=' + v.curTl + '), retrying setOption once');
+      await applySetOption();
+      await sleep(settleMs);
+      v = verify();
     }
+
+    const ok = v.apiOk || v.domSegments > 0;
+    console.log('[SubtitleMate] api: verify segments=' + v.domSegments + ' base=' + v.curBase +
+      ' tl=' + v.curTl + ' apiOk=' + v.apiOk + ' ok=' + ok);
+    return ok;
   }
 
   // ---------- main handler ----------
