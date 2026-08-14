@@ -26,6 +26,9 @@
 
   let settings = null;
   let applied = false;
+  let appliedVideoId = null;   // per-video guard: which video id we already applied to
+  let speedApplied = false;    // whether we already set the playback speed for this video
+  let applying = false;        // re-entrancy lock wrapping APPLY / SET_PLAYBACK_RATE
   let running = false;
   let bridgeReady = false;
   let navigateDebounceTimer = null;
@@ -122,76 +125,105 @@
   // ---------- main flow ----------
 
   async function applyOnce() {
-    if (applied) return;
+    // Re-entrancy lock: never run two APPLY/SET_PLAYBACK_RATE sequences at once.
+    if (applying) return;
+    // Per-video guard: if we already applied to the current video, do nothing.
+    if (applied && appliedVideoId === currentVideoId()) return;
     if (!isEnabled()) {
       console.log('[SubtitleMate] skipped: disabled');
       return;
     }
 
-    injectBridge();
-    const bridgeOk = await waitForBridge(3000);
-    if (!bridgeOk) {
-      console.log('[SubtitleMate] bridge not ready, will retry');
-      return;
-    }
-
-    const mode = settings[K.CAPTION_MODE];
-    const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
-    console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
-
-    // First: read the actual state. If YouTube already shows the right
-    // captions/translation (via API or via the open settings panel), just mark
-    // success and do nothing more.
-    const currentState = await sendBridgeCommand('GET_STATE', { mode: mode, targetLang: targetCode }, 5000);
-    console.log('[SubtitleMate] current state -> ' + JSON.stringify(currentState));
-    if (stateMatchesTarget(currentState, mode, targetCode)) {
-      const speedOk = speedMatchesTarget(currentState);
-      if (speedOk) {
-        applied = true;
-        try { observer.disconnect(); } catch (_) {}
-        console.log('[SubtitleMate] success: captions already satisfy target; no action needed');
+    applying = true;
+    try {
+      injectBridge();
+      const bridgeOk = await waitForBridge(3000);
+      if (!bridgeOk) {
+        console.log('[SubtitleMate] bridge not ready, will retry');
         return;
       }
-      // Captions are right but speed is wrong: skip APPLY, just set speed below.
-      console.log('[SubtitleMate] captions already correct, only speed needs adjustment');
-    }
 
-    const result = await sendBridgeCommand('APPLY', {
-      mode: mode,
-      targetLang: targetCode,
-    }, 30000);
+      const mode = settings[K.CAPTION_MODE];
+      const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
+      console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
 
-    console.log('[SubtitleMate] bridge result -> ' + JSON.stringify(result));
-    if (result && result.ok) {
-      applied = true;
-      // Stop further automatic triggers once successfully applied.
-      try { observer.disconnect(); } catch (_) {}
-      console.log('[SubtitleMate] success: ' + result.info);
-    } else {
-      const info = (result && result.info) || 'unknown';
-      console.log('[SubtitleMate] failed: ' + info);
-      // Surface a hint for the user when the multilingual-auto-translate path
-      // didn't take: it usually means either (a) the video has no caption
-      // tracks yet, or (b) the "auto-translate → Chinese" menu entry needs a
-      // manual first click.  Check the console for "[SubtitleMate] tracklist".
-      if (!applied) {
-        console.log('[SubtitleMate] hint: open DevTools console and look for "[SubtitleMate] tracklist" + "[SubtitleMate] api: verify" lines to diagnose. If tracklist is empty, captions are not available for this video.');
+      // First: read the actual state. If YouTube already shows the right
+      // captions/translation (via API or via the open settings panel), just mark
+      // success and do nothing more.
+      const currentState = await sendBridgeCommand('GET_STATE', { mode: mode, targetLang: targetCode }, 5000);
+      console.log('[SubtitleMate] current state -> ' + JSON.stringify(currentState));
+      if (stateMatchesTarget(currentState, mode, targetCode)) {
+        const speedOk = speedMatchesTarget(currentState);
+        if (speedOk) {
+          applied = true;
+          appliedVideoId = currentVideoId();
+          try { observer.disconnect(); } catch (_) {}
+          console.log('[SubtitleMate] success: captions already satisfy target; no action needed');
+          return;
+        }
+        // Captions are right but speed is wrong: skip APPLY, just set speed below.
+        console.log('[SubtitleMate] captions already correct, only speed needs adjustment');
       }
-    }
 
-    // Auto-set playback speed (independent of caption success), but only if
-    // it is not already correct.
-    if (settings && settings[K.AUTO_PLAYBACK_SPEED] && !speedMatchesTarget(currentState)) {
-      const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
-      const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
-      console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));
+      const result = await sendBridgeCommand('APPLY', {
+        mode: mode,
+        targetLang: targetCode,
+      }, 30000);
+
+      console.log('[SubtitleMate] bridge result -> ' + JSON.stringify(result));
+      if (result && result.ok) {
+        applied = true;
+        appliedVideoId = currentVideoId();
+        // Stop further automatic triggers once successfully applied; this also
+        // protects the user's manual caption/translation edits for this video.
+        try { observer.disconnect(); } catch (_) {}
+        console.log('[SubtitleMate] success: ' + result.info);
+      } else {
+        const info = (result && result.info) || 'unknown';
+        console.log('[SubtitleMate] failed: ' + info);
+        // Surface a hint for the user when the multilingual-auto-translate path
+        // didn't take: it usually means either (a) the video has no caption
+        // tracks yet, or (b) the "auto-translate → Chinese" menu entry needs a
+        // manual first click.  Check the console for "[SubtitleMate] tracklist".
+        if (!applied) {
+          console.log('[SubtitleMate] hint: open DevTools console and look for "[SubtitleMate] tracklist" + "[SubtitleMate] api: verify" lines to diagnose. If tracklist is empty, captions are not available for this video.');
+        }
+        return; // don't touch playback speed if captions failed
+      }
+
+      // Auto-set playback speed (independent of caption success), but only once
+      // per video and only if it is not already correct.
+      if (settings && settings[K.AUTO_PLAYBACK_SPEED] && !speedApplied && !speedMatchesTarget(currentState)) {
+        const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
+        const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
+        console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));
+        if (sr && sr.ok) speedApplied = true;
+      }
+      // Captions are now correct (either they were already, or we just set them);
+      // mark the whole job done so we don't loop or re-trigger on this video.
+      if (stateMatchesTarget(currentState, mode, targetCode) || (result && result.ok)) {
+        applied = true;
+        appliedVideoId = currentVideoId();
+        try { observer.disconnect(); } catch (_) {}
+      }
+    } finally {
+      applying = false;
     }
   }
 
+  // Reset the per-video state. Only clears when the video id actually changed,
+  // so manual edits within the same video are never re-applied.
   function reset() {
-    applied = false;
+    const vid = currentVideoId();
+    if (appliedVideoId !== vid) {
+      applied = false;
+      appliedVideoId = null;
+      speedApplied = false;
+    }
     // Re-enable observer in case it was disconnected after a previous success.
-    try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+    if (!applied) {
+      try { observer.observe(document.documentElement, { childList: true, subtree: true }); } catch (_) {}
+    }
   }
 
 
