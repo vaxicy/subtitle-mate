@@ -344,7 +344,7 @@ def draw_popup_mock(lang):
     d.text((inner_x, y), "Translate to" if en else "翻译为",
            font=font(int(11*scale), cjk=not en), fill=SECONDARY)
     y += int(14 * scale)
-    hint = "Only in Auto-translate mode" if en else "仅在「自动翻译」模式下生效"
+    hint = "Used when caption mode is \"Auto-translate\"" if en else "仅在「自动翻译」模式下生效"
     d.text((inner_x, y), hint, font=font(int(10*scale), cjk=not en), fill=SECONDARY)
     y += int(20 * scale)
     rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(38*scale)], int(8*scale), WHITE)
@@ -389,7 +389,7 @@ def draw_popup_mock(lang):
     y += int(10 * scale)
     d.line([(inner_x, y), (inner_x + inner_w, y)], fill=BORDER, width=1)
     y += int(10 * scale)
-    support_text = "Support developer" if en else "支持开发者"
+    support_text = "Support the developer" if en else "支持开发者"
     b = d.textbbox((0, 0), support_text, font=font(int(11*scale), cjk=not en))
     sw = b[2] - b[0]
     d.text((inner_x + (inner_w - sw) // 2, y), support_text, font=font(int(11*scale), cjk=not en), fill=SECONDARY)
