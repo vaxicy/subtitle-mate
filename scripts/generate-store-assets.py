@@ -48,6 +48,43 @@ def draw_center(d, cx, cy, s, f, fill):
     d.text((cx - w / 2 - b[0], cy - h / 2 - b[1]), s, font=f, fill=fill)
 
 
+def wrap_text(d, text, f, max_w):
+    """Simple greedy text wrap for a single line width."""
+    words = text.split()
+    lines = []
+    cur = ""
+    for w in words:
+        test = cur + (" " if cur else "") + w
+        bw = d.textbbox((0, 0), test, font=f)[2]
+        if bw <= max_w:
+            cur = test
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+
+def wrap_text_cjk(d, text, f, max_w):
+    """Wrap CJK text by characters, greedy."""
+    lines = []
+    cur = ""
+    for ch in text:
+        test = cur + ch
+        bw = d.textbbox((0, 0), test, font=f)[2]
+        if bw <= max_w:
+            cur = test
+        else:
+            if cur:
+                lines.append(cur)
+            cur = ch
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 # ---------- Icons ----------
 # Use icon-source.png as the single source of truth; auto-matte white background to transparent.
 ICON_SOURCE = os.path.join(ROOT, "store-assets", "icon-source.png")
@@ -261,39 +298,57 @@ def gen_promo():
 
 # ---------- Popup mockup ----------
 def draw_popup_mock(lang):
-    """Render the popup UI mockup card (transparent bg) used in screenshots."""
+    """Render the popup UI mockup card (transparent bg) used in screenshots.
+
+    Layout mirrors the real popup.html order exactly:
+      1. Enable SubtitleMate (master toggle + hint)
+      2. Auto-click CC button on video pages (checkbox + hint)
+      3. Auto-set playback speed (checkbox)
+      4. divider
+      5. Caption mode (select)
+      6. Translate to (select + hint, shown because mode is Auto-translate)
+      7. Playback speed (select)
+      8. Support the developer
+    """
     scale = 1.25
     card_w = int(230 * scale)
     pad = int(10 * scale)
     inner_x = pad
     inner_w = card_w - 2 * pad
 
-    # Calculate height top-down
+    en = (lang == 'en')
+
+    # helper: chevron at right edge of a select box of given top y / height
+    def chevron(cx, cy, r):
+        d.polygon([(cx-r, cy-r+1), (cx, cy+r+1), (cx+r, cy-r+1)], fill=SECONDARY)
+
+    # ---- measure height top-down ----
     y = 0
     y += int(22 * scale)          # top padding
     y += int(30 * scale)          # header
     y += int(6 * scale)           # margin
-    y += int(46 * scale)          # auto row
+    y += int(52 * scale)          # master toggle row (title + hint + toggle)
     y += int(6 * scale)           # margin
-    y += int(60 * scale)          # caption mode block
-    y += int(6 * scale)           # margin
-    y += int(70 * scale)          # target lang block
+    y += int(62 * scale)          # checkbox 1 (text + 2-line hint)
     y += int(2 * scale)           # margin
-    y += int(16 * scale)          # divider
-    y += int(58 * scale)          # checks (2 items + spacing)
+    y += int(24 * scale)          # checkbox 2 (single line)
     y += int(8 * scale)           # margin
-    y += int(40 * scale)          # speed block
-    y += int(10 * scale)          # top margin before support
-    y += int(10 * scale)          # border padding
+    y += int(16 * scale)          # divider
+    y += int(58 * scale)          # caption mode block (label + select)
+    y += int(6 * scale)           # margin
+    y += int(70 * scale)          # translate-to block (label + hint + select)
+    y += int(6 * scale)           # margin
+    y += int(58 * scale)          # playback speed block (label + select)
+    y += int(10 * scale)          # margin
+    y += int(16 * scale)          # support divider
     y += int(16 * scale)          # support link
     y += int(14 * scale)          # bottom padding
     card_h = y
 
     img = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    rounded_card(d, [0, 0, card_w, card_h], int(10*scale), WHITE)  # match real popup border radius
+    rounded_card(d, [0, 0, card_w, card_h], int(10*scale), WHITE)
 
-    en = (lang == 'en')
     y = int(22 * scale)
 
     # header
@@ -302,7 +357,6 @@ def draw_popup_mock(lang):
     name = "SubtitleMate"
     d.text((inner_x + int(28*scale), y + int(4*scale)), name,
            font=font(int(15*scale), bold=True, cjk=not en), fill=TEXT)
-    # lang switch pill
     switch_w = int(58 * scale)
     switch_h = int(22 * scale)
     switch_x = card_w - pad - switch_w
@@ -312,19 +366,47 @@ def draw_popup_mock(lang):
            font=font(int(10*scale), cjk=True), fill=SECONDARY)
     y += int(30 * scale) + int(6 * scale)
 
-    # auto captions row (master toggle — just "Enable")
-    rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(46*scale)], int(10*scale), SURFACE)
-    lbl = "Enable" if en else "启用"
-    d.text((inner_x + int(12*scale), y + int(14*scale)), lbl,
-           font=font(int(15*scale), bold=True, cjk=not en), fill=TEXT)
+    # 1. master toggle row
+    lbl = "Enable SubtitleMate" if en else "启用 SubtitleMate"
+    d.text((inner_x, y), lbl, font=font(int(15*scale), bold=True, cjk=not en), fill=TEXT)
+    hint = "Master switch for this extension" if en else "扩展总开关"
+    d.text((inner_x, y + int(20*scale)), hint, font=font(int(10*scale), cjk=not en), fill=SECONDARY)
     tw, th = int(40*scale), int(22*scale)
-    tx = inner_x + inner_w - tw - int(10*scale)
-    ty = y + int(12*scale)
+    tx = inner_x + inner_w - tw
+    ty = y + int(2*scale)
     d.rounded_rectangle([tx, ty, tx+tw, ty+th], int(th/2), fill=PRIMARY)
     d.ellipse([tx+tw-th+2, ty+2, tx+tw-2, ty+th-2], fill=WHITE)
-    y += int(46 * scale) + int(6 * scale)
+    y += int(52 * scale) + int(6 * scale)
 
-    # caption mode block
+    # 2. checkbox 1 (with hint)
+    chk1 = "Auto-click CC button on video pages" if en else "进入视频页自动点击字幕按钮"
+    chk1hint = 'Automatically clicks the "CC" button in the YouTube player' if en else '检测到 YouTube 视频时，自动点击播放器右下角“CC”按钮'
+    d.rounded_rectangle([inner_x, y, inner_x + int(16*scale), y + int(16*scale)], int(3*scale), fill=PRIMARY)
+    d.line([(inner_x+int(5*scale), y+int(8*scale)), (inner_x+int(8*scale), y+int(12*scale))], fill=WHITE, width=max(1, int(2*scale)))
+    d.line([(inner_x+int(8*scale), y+int(12*scale)), (inner_x+int(13*scale), y+int(5*scale))], fill=WHITE, width=max(1, int(2*scale)))
+    d.text((inner_x + int(24*scale), y - int(2*scale)), chk1, font=font(int(12*scale), cjk=not en), fill=TEXT)
+    hint_font = font(int(9*scale), cjk=not en)
+    hint_lines = (['Automatically clicks the "CC" button', 'in the YouTube player']
+                  if en else ['检测到 YouTube 视频时，自动点击', '播放器右下角“CC”按钮'])
+    hy = y + int(16*scale)
+    for line in hint_lines:
+        d.text((inner_x + int(24*scale), hy), line, font=hint_font, fill=SECONDARY)
+        hy += int(12*scale)
+    y += int(62 * scale) + int(2 * scale)
+
+    # 3. checkbox 2 (single line)
+    chk2 = "Auto-set playback speed" if en else "自动设置播放速度"
+    d.rounded_rectangle([inner_x, y + int(2*scale), inner_x + int(16*scale), y + int(18*scale)], int(3*scale), fill=WHITE)
+    d.rectangle([inner_x, y + int(2*scale), inner_x + int(16*scale), y + int(18*scale)], outline=SECONDARY, width=1)
+    d.text((inner_x + int(24*scale), y), chk2, font=font(int(12*scale), cjk=not en), fill=TEXT)
+    y += int(24 * scale) + int(8 * scale)
+
+    # divider
+    y += int(4 * scale)
+    d.line([(inner_x, y), (inner_x + inner_w, y)], fill=BORDER, width=1)
+    y += int(12 * scale)
+
+    # 5. caption mode block
     d.text((inner_x, y), "Caption mode" if en else "字幕模式",
            font=font(int(11*scale), cjk=not en), fill=SECONDARY)
     y += int(20 * scale)
@@ -333,18 +415,16 @@ def draw_popup_mock(lang):
     cm_text = "Auto-translate" if en else "自动翻译"
     d.text((inner_x + int(10*scale), y + int(10*scale)), cm_text,
            font=font(int(13*scale), cjk=not en), fill=TEXT)
-    # chevron
     cx = inner_x + inner_w - int(18*scale)
     cy = y + int(19*scale)
-    r = int(4*scale)
-    d.polygon([(cx-r, cy-r+1), (cx, cy+r+1), (cx+r, cy-r+1)], fill=SECONDARY)
+    chevron(cx, cy, int(4*scale))
     y += int(38 * scale) + int(6 * scale)
 
-    # target lang block
+    # 6. translate-to block
     d.text((inner_x, y), "Translate to" if en else "翻译为",
            font=font(int(11*scale), cjk=not en), fill=SECONDARY)
     y += int(14 * scale)
-    hint = "Used when caption mode is \"Auto-translate\"" if en else "仅在「自动翻译」模式下生效"
+    hint = 'Used when caption mode is "Auto-translate"' if en else "仅在「自动翻译」模式下生效"
     d.text((inner_x, y), hint, font=font(int(10*scale), cjk=not en), fill=SECONDARY)
     y += int(20 * scale)
     rounded_card(d, [inner_x, y, inner_x + inner_w, y + int(38*scale)], int(8*scale), WHITE)
@@ -352,28 +432,10 @@ def draw_popup_mock(lang):
     tl_text = "Chinese (Simplified)" if en else "中文（简体）"
     d.text((inner_x + int(10*scale), y + int(10*scale)), tl_text,
            font=font(int(13*scale), cjk=not en), fill=TEXT)
-    d.polygon([(cx-r, cy-r+1), (cx, cy+r+1), (cx+r, cy-r+1)], fill=SECONDARY)
-    y += int(38 * scale) + int(2 * scale)
+    chevron(cx, cy, int(4*scale))
+    y += int(38 * scale) + int(6 * scale)
 
-    # divider before checks
-    y += int(4 * scale)
-    d.line([(inner_x, y), (inner_x + inner_w, y)], fill=BORDER, width=1)
-    y += int(12 * scale)
-
-    # checks (two items)
-    check_items = [
-        "Auto-enable on YouTube" if en else "打开 YouTube 时自动开启字幕",
-        "Auto-set playback speed" if en else "自动设置播放速度",
-    ]
-    for c in check_items:
-        d.rounded_rectangle([inner_x, y, inner_x + int(16*scale), y + int(16*scale)], int(3*scale), fill=PRIMARY)
-        d.line([(inner_x+int(5*scale), y+int(8*scale)), (inner_x+int(8*scale), y+int(12*scale))], fill=WHITE, width=max(1, int(2*scale)))
-        d.line([(inner_x+int(8*scale), y+int(12*scale)), (inner_x+int(13*scale), y+int(5*scale))], fill=WHITE, width=max(1, int(2*scale)))
-        d.text((inner_x + int(24*scale), y - int(2*scale)), c, font=font(int(12*scale), cjk=not en), fill=TEXT)
-        y += int(19 * scale)
-    y += int(8 * scale)
-
-    # speed block
+    # 7. playback speed block
     d.text((inner_x, y), "Playback speed" if en else "播放速度",
            font=font(int(11*scale), cjk=not en), fill=SECONDARY)
     y += int(20 * scale)
@@ -382,10 +444,10 @@ def draw_popup_mock(lang):
     sp_text = "1.5x" if en else "1.5 倍速"
     d.text((inner_x + int(10*scale), y + int(10*scale)), sp_text,
            font=font(int(13*scale), cjk=not en), fill=TEXT)
-    d.polygon([(cx-r, cy-r+1), (cx, cy+r+1), (cx+r, cy-r+1)], fill=SECONDARY)
+    chevron(cx, cy, int(4*scale))
     y += int(38 * scale)
 
-    # support
+    # 8. support
     y += int(10 * scale)
     d.line([(inner_x, y), (inner_x + inner_w, y)], fill=BORDER, width=1)
     y += int(10 * scale)
