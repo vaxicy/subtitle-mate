@@ -579,6 +579,19 @@
     return st.translationLanguage === (targetLang || 'zh-CN').toLowerCase();
   }
 
+  function isCaptionsEnabled() {
+    const player = getPlayer();
+    if (player && canUseApi(player)) {
+      try {
+        const cur = player.getOption('captions', 'track');
+        if (cur && (cur.languageCode || cur.langCode || cur.code)) return true;
+      } catch (_) {}
+    }
+    const btn = document.querySelector('.ytp-subtitles-button.ytp-button');
+    if (btn && btn.classList.contains('ytp-active')) return true;
+    return document.querySelectorAll('.ytp-caption-segment').length > 0;
+  }
+
   // ---------- player-API caption helpers ----------
 
   function listCaptionTracks(player) {
@@ -637,7 +650,23 @@
       console.log('[SubtitleMate] api: no player found');
       return false;
     }
-    const tracks = listCaptionTracks(player);
+
+    // Only click the CC button if captions are currently off. If the user (or a
+    // previous attempt) already turned them on, clicking again would toggle them
+    // off and trigger useless retries.
+    if (!isCaptionsEnabled()) {
+      console.log('[SubtitleMate] api: captions not enabled yet, clicking CC once');
+      clickCcButtonIfPresent();
+      await sleep(1500);
+    }
+
+    let tracks = listCaptionTracks(player);
+    let waitAttempts = 0;
+    while (!tracks.length && waitAttempts < 4) {
+      await sleep(800);
+      tracks = listCaptionTracks(player);
+      waitAttempts++;
+    }
     if (!tracks.length) {
       console.log('[SubtitleMate] api: no caption tracks available yet');
       return false;

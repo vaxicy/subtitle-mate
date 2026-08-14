@@ -32,6 +32,8 @@
   let running = false;
   let bridgeReady = false;
   let navigateDebounceTimer = null;
+  let currentRunToken = null;  // abort token for the active retry loop
+  let pendingRun = false;      // whether a new run was requested while one was active
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -125,6 +127,9 @@
   // ---------- main flow ----------
 
   async function applyOnce() {
+    const token = currentRunToken;
+    if (!token || token.aborted) return;
+
     // Re-entrancy lock: never run two APPLY/SET_PLAYBACK_RATE sequences at once.
     if (applying) return;
     // Per-video guard: if we already applied to the current video, do nothing.
@@ -142,15 +147,22 @@
         console.log('[SubtitleMate] bridge not ready, will retry');
         return;
       }
+      if (token.aborted) {
+        console.log('[SubtitleMate] applyOnce aborted after bridge ready');
+        return;
+      }
 
       const mode = settings[K.CAPTION_MODE];
       const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
       console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
 
       // First: read the actual state. If YouTube already shows the right
-      // captions/translation (via API or via the open settings panel), just mark
-      // success and do nothing more.
+      // captions/translation, just mark success and do nothing more.
       const currentState = await sendBridgeCommand('GET_STATE', { mode: mode, targetLang: targetCode }, 5000);
+      if (token.aborted) {
+        console.log('[SubtitleMate] applyOnce aborted after state read');
+        return;
+      }
       console.log('[SubtitleMate] current state -> ' + JSON.stringify(currentState));
       if (stateMatchesTarget(currentState, mode, targetCode)) {
         const speedOk = speedMatchesTarget(currentState);
@@ -169,13 +181,16 @@
         mode: mode,
         targetLang: targetCode,
       }, 30000);
+      if (token.aborted) {
+        console.log('[SubtitleMate] applyOnce aborted after APPLY result');
+        return;
+      }
 
       console.log('[SubtitleMate] bridge result -> ' + JSON.stringify(result));
       if (result && result.ok) {
         applied = true;
         appliedVideoId = currentVideoId();
-        // Stop further automatic triggers once successfully applied; this also
-        // protects the user's manual caption/translation edits for this video.
+        // Stop further automatic triggers once successfully applied.
         try { observer.disconnect(); } catch (_) {}
         console.log('[SubtitleMate] success: ' + result.info);
       } else {
@@ -196,6 +211,10 @@
       if (settings && settings[K.AUTO_PLAYBACK_SPEED] && !speedApplied && !speedMatchesTarget(currentState)) {
         const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
         const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
+        if (token.aborted) {
+          console.log('[SubtitleMate] applyOnce aborted after speed result');
+          return;
+        }
         console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));
         if (sr && sr.ok) speedApplied = true;
       }
@@ -233,22 +252,45 @@
     return m ? m[1] : location.pathname;
   }
 
+  function abortCurrentRun() {
+    if (currentRunToken) currentRunToken.aborted = true;
+  }
+
+  function requestRun() {
+    pendingRun = true;
+    abortCurrentRun();
+    clearTimeout(navigateDebounceTimer);
+    navigateDebounceTimer = setTimeout(() => { reset(); runWithRetries(); }, 100);
+  }
+
   async function runWithRetries() {
-    if (running || applied || !isEnabled()) return;
+    if (running) { pendingRun = true; return; }
+    if (applied || !isEnabled()) { pendingRun = false; return; }
     running = true;
+    pendingRun = false;
+    abortCurrentRun();
+    const token = { aborted: false };
+    currentRunToken = token;
     try {
-      // Fewer, gentler retries with exponential back-off so we don't keep
-      // hammering YouTube (which would reset the translation stream and make
-      // the Chinese captions never finish loading).
-      for (let i = 0; i < 5; i++) {
+      // At most 3 gentle retries. Stop early on success, abort, or definitive
+      // failure so we don't keep hammering YouTube.
+      for (let i = 0; i < 3; i++) {
+        if (token.aborted) break;
         await applyOnce();
-        if (applied) return;
-        await sleep(2000 + i * 2000);
+        if (applied || token.aborted) break;
+        await sleep(2000);
       }
       // Exhausted retries without success -> definitive failure.
-      console.log('[SubtitleMate] failed after retries; applied=' + applied);
+      if (!applied && !token.aborted) {
+        console.log('[SubtitleMate] failed after retries; applied=' + applied);
+      }
     } finally {
       running = false;
+      if (currentRunToken === token) currentRunToken = null;
+      if (pendingRun) {
+        pendingRun = false;
+        setTimeout(() => { reset(); runWithRetries(); }, 50);
+      }
     }
   }
 
@@ -267,18 +309,21 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'SM_SETTINGS_CHANGED') {
       settings = msg.settings;
-      reset();
-      runWithRetries();
+
+      // Always force re-evaluation when settings change; the target may have changed.
+      applied = false;
+      appliedVideoId = null;
+      speedApplied = false;
+      try {
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      } catch (_) {}
+      requestRun();
     }
   });
 
   // React to YouTube SPA navigation (switching videos).
   window.addEventListener('yt-navigate-finish', () => {
-    clearTimeout(navigateDebounceTimer);
-    navigateDebounceTimer = setTimeout(() => {
-      reset();
-      runWithRetries();
-    }, 300);
+    requestRun();
   });
 
   // Watch for the video element being injected (run_at: document_start).
