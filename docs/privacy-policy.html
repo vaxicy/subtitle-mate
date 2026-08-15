@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SubtitleMate Privacy Policy | 隐私权政策</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --sub: #94a3b8;
+      --accent: #38bdf8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0 0 8px;
+      font-weight: 700;
+    }
+    .subtitle {
+      color: var(--sub);
+      font-size: 15px;
+    }
+    .lang-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .lang-tab {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--sub);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 8px 20px;
+      transition: all .2s ease;
+    }
+    .lang-tab:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .lang-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #0f172a;
+    }
+    .lang-content {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .lang-content.active {
+      display: block;
+    }
+    .lang-content h3 {
+      font-size: 16px;
+      margin-top: 24px;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .lang-content h3:first-child {
+      margin-top: 0;
+    }
+    p {
+      margin: 10px 0;
+      color: var(--sub);
+    }
+    ul {
+      padding-left: 20px;
+      color: var(--sub);
+    }
+    li {
+      margin: 6px 0;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+    footer {
+      text-align: center;
+      color: var(--sub);
+      font-size: 13px;
+      margin-top: 40px;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 32px 16px; }
+      .lang-content { padding: 20px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 id="page-title">SubtitleMate Privacy Policy</h1>
+      <div class="subtitle" id="page-subtitle">Last updated: August 10, 2026 | 最后更新：2026年8月10日</div>
+    </header>
+
+    <nav class="lang-tabs" aria-label="Language switcher">
+      <button class="lang-tab" data-lang="en" aria-pressed="false">English</button>
+      <button class="lang-tab" data-lang="zh" aria-pressed="false">中文</button>
+    </nav>
+
+    <section class="lang-content" data-lang="en" lang="en">
+      <h3>Information We Do Not Collect</h3>
+      <p>We do not collect, store, or transmit any personally identifiable information (PII). We do not track your browsing history, video watch history, account credentials, or any content you view.</p>
+
+      <h3>Local Settings Only</h3>
+      <p>Your preferences (such as caption mode, target language, and playback speed) are stored locally in your browser using Chrome Storage APIs (<code>chrome.storage.sync</code> / <code>chrome.storage.local</code>). These settings remain on your device and are not sent to our servers.</p>
+
+      <h3>How YouTube Content Is Processed</h3>
+      <p>The Extension runs inside the YouTube page to read the video player state and select caption tracks. All processing happens locally in your browser. No video data, subtitles, or translations are sent to any third-party service or backend server.</p>
+
+      <h3>Third-Party Services</h3>
+      <p>SubtitleMate does not integrate with any external analytics, advertising, or AI services. The Extension does not make network requests to any domain other than the YouTube page you are currently visiting.</p>
+
+      <h3>Contact</h3>
+      <p>If you have any questions about this privacy policy, please contact us at <a href="mailto:huangzero2004@gmail.com">huangzero2004@gmail.com</a>.</p>
+    </section>
+
+    <section class="lang-content" data-lang="zh" lang="zh-CN">
+      <h3>我们不收集的信息</h3>
+      <p>我们不会收集、存储或传输任何可识别个人身份的信息（PII）。我们不会追踪你的浏览历史、观看记录、账号凭据或你查看的任何内容。</p>
+
+      <h3>仅本地保存设置</h3>
+      <p>你的偏好设置（如字幕模式、目标语言、播放速度等）仅通过 Chrome Storage API（<code>chrome.storage.sync</code> / <code>chrome.storage.local</code>）保存在你的浏览器本地。这些设置不会发送到我们的服务器。</p>
+
+      <h3>YouTube 内容的处理方式</h3>
+      <p>本扩展在 YouTube 页面内运行，用于读取视频播放器状态并选择字幕轨道。所有处理均在浏览器本地完成。视频数据、字幕文本或翻译结果不会被发送到任何第三方服务或后端服务器。</p>
+
+      <h3>第三方服务</h3>
+      <p>SubtitleMate 不接入任何外部数据分析、广告或 AI 服务。除你当前访问的 YouTube 页面外，本扩展不会向任何其他域名发起网络请求。</p>
+
+      <h3>联系我们</h3>
+      <p>如果你对本隐私权政策有任何疑问，请发送邮件至 <a href="mailto:huangzero2004@gmail.com">huangzero2004@gmail.com</a>。</p>
+    </section>
+
+    <footer>
+      &copy; 2026 SubtitleMate. All rights reserved.
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      const STORAGE_KEY = 'subtitle_mate_privacy_lang';
+      const tabs = document.querySelectorAll('.lang-tab');
+      const panels = document.querySelectorAll('.lang-content');
+      const html = document.documentElement;
+
+      function detectDefaultLang() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved === 'en' || saved === 'zh') return saved;
+        const browser = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+        return browser.startsWith('zh') ? 'zh' : 'en';
+      }
+
+      function switchLang(lang) {
+        localStorage.setItem(STORAGE_KEY, lang);
+        html.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+        tabs.forEach(function (tab) {
+          const active = tab.dataset.lang === lang;
+          tab.classList.toggle('active', active);
+          tab.setAttribute('aria-pressed', String(active));
+        });
+
+        panels.forEach(function (panel) {
+          panel.classList.toggle('active', panel.dataset.lang === lang);
+        });
+      }
+
+      tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          switchLang(tab.dataset.lang);
+        });
+      });
+
+      switchLang(detectDefaultLang());
+    })();
+  </script>
+</body>
+</html>
