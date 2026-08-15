@@ -8,6 +8,7 @@ Outputs:
   store-assets/screenshots/{zh,en}/screenshot-*.png (1280x800 RGB)
 """
 import os
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -177,11 +178,62 @@ def remove_background(img_rgba, tolerance=35, edge_expand=2):
     return img_rgba
 
 
+def remove_star_component(img_rgba):
+    """Remove the small decorative star in the top-right corner.
+
+    After background removal the star is a separate connected component
+    above and to the right of the main speech-bubble icon.
+    """
+    from collections import deque
+
+    arr = np.array(img_rgba)
+    h, w = arr.shape[:2]
+    opaque = arr[:, :, 3] > 0
+    visited = np.zeros((h, w), dtype=bool)
+    largest_size = 0
+    components = []
+
+    for y in range(h):
+        for x in range(w):
+            if opaque[y, x] and not visited[y, x]:
+                comp = []
+                q = deque([(x, y)])
+                visited[y, x] = True
+                while q:
+                    cx, cy = q.popleft()
+                    comp.append((cx, cy))
+                    for dx in (-1, 0, 1):
+                        for dy in (-1, 0, 1):
+                            if dx == 0 and dy == 0:
+                                continue
+                            nx, ny = cx + dx, cy + dy
+                            if 0 <= nx < w and 0 <= ny < h and opaque[ny, nx] and not visited[ny, nx]:
+                                visited[ny, nx] = True
+                                q.append((nx, ny))
+                largest_size = max(largest_size, len(comp))
+                components.append(comp)
+
+    star_mask = np.zeros((h, w), dtype=bool)
+    for comp in components:
+        size = len(comp)
+        if size == 0:
+            continue
+        cx = sum(p[0] for p in comp) / size
+        cy = sum(p[1] for p in comp) / size
+        # Star is a small isolated component in the top-right quadrant.
+        if size < largest_size * 0.05 and cx > w * 0.70 and cy < h * 0.25:
+            for x, y in comp:
+                star_mask[y, x] = True
+
+    arr[star_mask] = [0, 0, 0, 0]
+    return Image.fromarray(arr, "RGBA")
+
+
 def load_source_icon():
     global _source_icon_no_bg
     if _source_icon_no_bg is None:
         img = Image.open(ICON_SOURCE).convert("RGBA")
-        _source_icon_no_bg = remove_background(img)
+        _source_icon_no_bg = remove_star_component(remove_background(img))
     return _source_icon_no_bg
 
 

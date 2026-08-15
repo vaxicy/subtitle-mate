@@ -49,10 +49,12 @@
   function applyUI() {
     const i18n = I18N[uiLang];
     $('lblAutoCaptions').textContent = i18n.autoCaptions;
+    $('lblAutoCaptionsHint').textContent = i18n.autoCaptionsHint;
     $('lblCaptionMode').textContent = i18n.captionMode;
     $('lblTargetLang').textContent = i18n.targetLang;
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
+    $('lblAutoYtHint').textContent = i18n.autoOnYtHint;
     $('lblAutoSpeed').textContent = i18n.autoPlaybackSpeed;
     $('lblSpeed').textContent = i18n.playbackSpeed;
     $('lnkSupport').textContent = i18n.supportLink;

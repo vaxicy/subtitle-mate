@@ -14,12 +14,29 @@
 
     <section class="row">
       <div class="row-text">
-        <div class="row-title" id="lblAutoCaptions">Enable</div>
+        <div class="row-title" id="lblAutoCaptions">Enable SubtitleMate</div>
+        <div class="row-hint" id="lblAutoCaptionsHint">Master switch for this extension</div>
       </div>
       <button id="toggleAuto" class="toggle" role="switch" aria-checked="true">
         <span class="knob"></span>
       </button>
     </section>
+
+    <section class="checks">
+      <label class="check">
+        <input type="checkbox" id="chkAutoYt" />
+        <span class="check-text">
+          <span id="lblAutoYt">Auto-click CC button on video pages</span>
+          <span class="check-hint" id="lblAutoYtHint">Automatically clicks the "CC" button in the YouTube player</span>
+        </span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="chkAutoSpeed" />
+        <span id="lblAutoSpeed">Auto-set playback speed</span>
+      </label>
+    </section>
+
+    <hr class="divider" />
 
     <section class="block">
       <label class="block-label" id="lblCaptionMode">Caption mode</label>
@@ -30,19 +47,6 @@
       <label class="block-label" id="lblTargetLang">Translate to</label>
       <span class="block-hint" id="lblTargetLangHint"></span>
       <select id="targetLang" class="select"></select>
-    </section>
-
-    <hr class="divider" />
-
-    <section class="checks">
-      <label class="check">
-        <input type="checkbox" id="chkAutoYt" />
-        <span id="lblAutoYt">Auto-enable on YouTube</span>
-      </label>
-      <label class="check">
-        <input type="checkbox" id="chkAutoSpeed" />
-        <span id="lblAutoSpeed">Auto-set playback speed</span>
-      </label>
     </section>
 
     <section class="block" id="speedBlock">
