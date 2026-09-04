@@ -29,7 +29,7 @@ Open any video and it works in two steps:
    • Translate — auto-translates into your target language (15 languages supported).
    • English (auto-generated) — selects YouTube's built-in English auto-transcription track.
 
-Videos with no caption tracks are skipped: SubtitleMate keeps the speed you set and stops trying, so nothing gets spammed. Set once, works on every video.
+Videos with no caption tracks are skipped: SubtitleMate keeps the speed you set and stops trying. Set once, works on every video.
 
 Features:
 
