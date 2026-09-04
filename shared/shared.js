@@ -10,6 +10,7 @@
     AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
     PLAYBACK_RATE: 'sm_playbackRate',
     UI_LANG: 'sm_uiLang',
+    RETRY_COUNT: 'sm_retryCount',
   };
 
   // Allowed playback rate values (matches YouTube's speed menu).
@@ -63,6 +64,8 @@
       on: 'ON', off: 'OFF',
       saved: 'Saved',
       supportLink: 'Support the developer',
+      retryCount: 'Retry count',
+      retryCountHint: 'Max attempts when captions load slowly',
     },
     zh: {
       name: 'SubtitleMate',
@@ -84,6 +87,8 @@
       on: '开', off: '关',
       saved: '已保存',
       supportLink: '支持开发者',
+      retryCount: '重试次数',
+      retryCountHint: '字幕加载较慢时，自动重试应用的最大次数',
     },
   };
 
@@ -95,6 +100,7 @@
     [STORAGE_KEYS.AUTO_PLAYBACK_SPEED]: false,
     [STORAGE_KEYS.PLAYBACK_RATE]: 1.5,
     [STORAGE_KEYS.UI_LANG]: 'en',
+    [STORAGE_KEYS.RETRY_COUNT]: 5,
   };
 
   async function getSettings() {

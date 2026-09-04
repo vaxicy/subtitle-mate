@@ -17,6 +17,7 @@
     AUTO_ON_YT: 'sm_autoOnYt',
     AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
     PLAYBACK_RATE: 'sm_playbackRate',
+    RETRY_COUNT: 'sm_retryCount',
   };
 
   const MODE = {
@@ -45,6 +46,7 @@
       [K.AUTO_ON_YT]: true,
       [K.AUTO_PLAYBACK_SPEED]: false,
       [K.PLAYBACK_RATE]: 1.5,
+      [K.RETRY_COUNT]: 5,
     };
     settings = await chrome.storage.sync.get(defs);
   }
@@ -156,27 +158,43 @@
       const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
       console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
 
-      // First: read the actual state. If YouTube already shows the right
-      // captions/translation, just mark success and do nothing more.
+      // Read the current state (captions + speed) before deciding what to do.
       const currentState = await sendBridgeCommand('GET_STATE', { mode: mode, targetLang: targetCode }, 5000);
       if (token.aborted) {
         console.log('[SubtitleMate] applyOnce aborted after state read');
         return;
       }
       console.log('[SubtitleMate] current state -> ' + JSON.stringify(currentState));
+
+      // STEP 1 — playback speed FIRST, independent of whether the video has
+      // any captions. Videos with no subtitles still get their speed applied.
+      if (settings && settings[K.AUTO_PLAYBACK_SPEED] && !speedApplied && !speedMatchesTarget(currentState)) {
+        const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
+        const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
+        if (token.aborted) {
+          console.log('[SubtitleMate] applyOnce aborted after speed result');
+          return;
+        }
+        console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));
+        if (sr && sr.ok) speedApplied = true;
+      }
+
+      // STEP 2 — captions. If the target is already satisfied we are done;
+      // the speed was handled above in step 1.
       if (stateMatchesTarget(currentState, mode, targetCode)) {
-        const speedOk = speedMatchesTarget(currentState);
-        if (speedOk) {
+        const speedSettled = !settings[K.AUTO_PLAYBACK_SPEED] || speedApplied || speedMatchesTarget(currentState);
+        if (speedSettled) {
           applied = true;
           appliedVideoId = currentVideoId();
           try { observer.disconnect(); } catch (_) {}
           console.log('[SubtitleMate] success: captions already satisfy target; no action needed');
-          return;
+        } else {
+          console.log('[SubtitleMate] captions already correct, waiting for speed to settle');
         }
-        // Captions are right but speed is wrong: skip APPLY, just set speed below.
-        console.log('[SubtitleMate] captions already correct, only speed needs adjustment');
+        return;
       }
 
+      // STEP 3 — attempt to apply captions / translation.
       const result = await sendBridgeCommand('APPLY', {
         mode: mode,
         targetLang: targetCode,
@@ -193,38 +211,26 @@
         // Stop further automatic triggers once successfully applied.
         try { observer.disconnect(); } catch (_) {}
         console.log('[SubtitleMate] success: ' + result.info);
-      } else {
-        const info = (result && result.info) || 'unknown';
-        console.log('[SubtitleMate] failed: ' + info);
-        // Surface a hint for the user when the multilingual-auto-translate path
-        // didn't take: it usually means either (a) the video has no caption
-        // tracks yet, or (b) the "auto-translate → Chinese" menu entry needs a
-        // manual first click.  Check the console for "[SubtitleMate] tracklist".
-        if (!applied) {
-          console.log('[SubtitleMate] hint: open DevTools console and look for "[SubtitleMate] tracklist" + "[SubtitleMate] api: verify" lines to diagnose. If tracklist is empty, captions are not available for this video.');
-        }
-        return; // don't touch playback speed if captions failed
+        return;
       }
 
-      // Auto-set playback speed (independent of caption success), but only once
-      // per video and only if it is not already correct.
-      if (settings && settings[K.AUTO_PLAYBACK_SPEED] && !speedApplied && !speedMatchesTarget(currentState)) {
-        const rate = Number(settings[K.PLAYBACK_RATE]) || 1.5;
-        const sr = await sendBridgeCommand('SET_PLAYBACK_RATE', { rate }, 8000);
-        if (token.aborted) {
-          console.log('[SubtitleMate] applyOnce aborted after speed result');
-          return;
-        }
-        console.log('[SubtitleMate] playback rate result -> ' + JSON.stringify(sr));
-        if (sr && sr.ok) speedApplied = true;
-      }
-      // Captions are now correct (either they were already, or we just set them);
-      // mark the whole job done so we don't loop or re-trigger on this video.
-      if (stateMatchesTarget(currentState, mode, targetCode) || (result && result.ok)) {
+      const info = (result && result.info) || 'unknown';
+      console.log('[SubtitleMate] failed: ' + info);
+
+      // Definitive answer: this video has no caption tracks at all. The bridge
+      // already waited internally for tracks to appear, so this is not a timing
+      // hiccup — keep whatever speed we applied above and stop retrying
+      // captions, so no-subtitle videos are never hammered.
+      if (/no caption tracks/i.test(info)) {
         applied = true;
         appliedVideoId = currentVideoId();
         try { observer.disconnect(); } catch (_) {}
+        console.log('[SubtitleMate] no subtitle tracks on this video; speed-only, stopping retries');
+        return;
       }
+
+      // Otherwise: let the caller retry (bounded by the configured retry count).
+      console.log('[SubtitleMate] hint: open DevTools console and look for "[SubtitleMate] tracklist" + "[SubtitleMate] api: verify" lines to diagnose.');
     } finally {
       applying = false;
     }
@@ -272,9 +278,11 @@
     const token = { aborted: false };
     currentRunToken = token;
     try {
-      // At most 3 gentle retries. Stop early on success, abort, or definitive
-      // failure so we don't keep hammering YouTube.
-      for (let i = 0; i < 3; i++) {
+      // Retry count is user-configurable in the popup (default 5). Stop early
+      // on success, abort, or definitive failure so we never hammer YouTube
+      // forever.
+      const maxRetries = Math.max(1, Math.min(20, Number(settings && settings[K.RETRY_COUNT]) || 5));
+      for (let i = 0; i < maxRetries; i++) {
         if (token.aborted) break;
         await applyOnce();
         if (applied || token.aborted) break;

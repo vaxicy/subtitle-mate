@@ -57,6 +57,8 @@
     $('lblAutoYtHint').textContent = i18n.autoOnYtHint;
     $('lblAutoSpeed').textContent = i18n.autoPlaybackSpeed;
     $('lblSpeed').textContent = i18n.playbackSpeed;
+    $('lblRetryCount').textContent = i18n.retryCount;
+    $('lblRetryCountHint').textContent = i18n.retryCountHint;
     $('lnkSupport').textContent = i18n.supportLink;
     document.documentElement.lang = uiLang === 'zh' ? 'zh-CN' : 'en';
 
@@ -76,6 +78,9 @@
     $('chkAutoSpeed').checked = settings[STORAGE_KEYS.AUTO_PLAYBACK_SPEED];
     fillRateOptions($('playbackRate'), Number(settings[STORAGE_KEYS.PLAYBACK_RATE]));
     $('speedBlock').classList.toggle('disabled', !settings[STORAGE_KEYS.AUTO_PLAYBACK_SPEED]);
+
+    // Retry count control.
+    $('retryCount').value = String(Number(settings[STORAGE_KEYS.RETRY_COUNT]) || 5);
   }
 
   async function save(patch) {
@@ -114,6 +119,12 @@
 
     $('playbackRate').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.PLAYBACK_RATE]: Number(e.target.value) }));
+
+    $('retryCount').addEventListener('change', (e) => {
+      const n = Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 5));
+      e.target.value = String(n);
+      save({ [STORAGE_KEYS.RETRY_COUNT]: n });
+    });
 
     $('langSwitch').addEventListener('click', () => {
       uiLang = uiLang === 'en' ? 'zh' : 'en';

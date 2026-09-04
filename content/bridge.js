@@ -644,7 +644,13 @@
     return track;
   }
 
+  // Records why the API path failed, so handleApply can report a definitive
+  // "this video has no subtitle tracks" reason to the content script instead of
+  // a generic "both approaches failed" that would trigger endless retries.
+  let lastApiFailureReason = null;
+
   async function applyViaApi(mode, targetLang) {
+    lastApiFailureReason = null;
     const player = await waitForPlayer(10000);
     if (!player) {
       console.log('[SubtitleMate] api: no player found');
@@ -668,6 +674,7 @@
       waitAttempts++;
     }
     if (!tracks.length) {
+      lastApiFailureReason = 'no caption tracks';
       console.log('[SubtitleMate] api: no caption tracks available yet');
       return false;
     }
@@ -765,6 +772,12 @@
       };
     }
 
+    // Definitive vs retryable failure: if the API path never found any caption
+    // tracks, the video simply has no subtitles, so the content script should
+    // stop retrying instead of hammering the page.
+    if (lastApiFailureReason === 'no caption tracks') {
+      return { ok: false, info: 'no caption tracks available on this video' };
+    }
     return { ok: false, info: 'API and UI approaches both failed' };
   }
 
