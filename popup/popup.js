@@ -120,6 +120,16 @@
     $('playbackRate').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.PLAYBACK_RATE]: Number(e.target.value) }));
 
+    // Auto-save while typing (no blur required). Only persist when the field
+    // currently holds a valid number in [1, 20], so half-typed or empty values
+    // never reach storage.
+    $('retryCount').addEventListener('input', (e) => {
+      const raw = parseInt(e.target.value, 10);
+      if (!raw || raw < 1 || raw > 20) return;
+      save({ [STORAGE_KEYS.RETRY_COUNT]: raw });
+    });
+
+    // On blur, clamp whatever is left (e.g. empty or 999) back into range.
     $('retryCount').addEventListener('change', (e) => {
       const n = Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 5));
       e.target.value = String(n);

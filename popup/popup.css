@@ -165,6 +165,20 @@ body::-webkit-scrollbar-thumb:hover {
   cursor: pointer;
 }
 
+/* Text / number input: same look as .select but WITHOUT the dropdown chevron
+   (that chevron only makes sense for <select>) and without `appearance: none`,
+   so <input type="number"> keeps its native spin buttons. */
+.input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: text;
+}
+
 .checks { display: flex; flex-direction: column; gap: 10px; margin-top: 2px; }
 .check {
   display: flex;
