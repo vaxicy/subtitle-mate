@@ -15,6 +15,7 @@
     CAPTION_MODE: 'sm_captionMode',
     TARGET_LANG: 'sm_targetLang',
     AUTO_ON_YT: 'sm_autoOnYt',
+    AUTO_TRANSLATE: 'sm_autoTranslate',
     AUTO_PLAYBACK_SPEED: 'sm_autoPlaybackSpeed',
     PLAYBACK_RATE: 'sm_playbackRate',
     RETRY_COUNT: 'sm_retryCount',
@@ -23,6 +24,7 @@
   const MODE = {
     TRANSLATE: 'translate',
     AUTO_GENERATED: 'auto-generated',
+    ORIGINAL: 'original', // captions on, no translation
   };
 
   let settings = null;
@@ -44,6 +46,7 @@
       [K.CAPTION_MODE]: MODE.TRANSLATE,
       [K.TARGET_LANG]: 'zh-CN',
       [K.AUTO_ON_YT]: true,
+      [K.AUTO_TRANSLATE]: true,
       [K.AUTO_PLAYBACK_SPEED]: false,
       [K.PLAYBACK_RATE]: 1.5,
       [K.RETRY_COUNT]: 5,
@@ -107,7 +110,10 @@
   function stateMatchesTarget(st, mode, targetCode) {
     if (!st || !st.ok) return !!st.panelSatisfied;
     if (st.panelSatisfied) return true;
-    if (mode === MODE.AUTO_GENERATED) {
+    if (mode === MODE.ORIGINAL) {
+      // Any original (non-translated) caption track is acceptable.
+      if (st.isTranslation) return false;
+    } else if (mode === MODE.AUTO_GENERATED) {
       // Expect an English base track with no translation.
       if (!st.baseLang || st.baseLang.indexOf('en') !== 0) return false;
       if (st.isTranslation) return false;
@@ -154,7 +160,12 @@
         return;
       }
 
-      const mode = settings[K.CAPTION_MODE];
+      // Auto-translate off forces original-captions mode regardless of the
+      // caption-mode dropdown: "show captions, don't translate them".
+      const autoTranslate = settings[K.AUTO_TRANSLATE] !== false;
+      const mode = autoTranslate
+        ? settings[K.CAPTION_MODE]
+        : MODE.ORIGINAL;
       const targetCode = settings[K.TARGET_LANG] || 'zh-CN';
       console.log('[SubtitleMate] applyOnce mode=' + mode + ' target=' + targetCode);
 

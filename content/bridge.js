@@ -390,6 +390,24 @@
         return false;
       }
 
+      if (mode === 'original') {
+        // The subtitle menu's first-level language list contains original
+        // tracks. Pick the currently displayed one, or the first available
+        // non-translated entry — never touch "Auto-translate".
+        const panel0 = getSettingsPanel();
+        const items = Array.from((panel0 && panel0.querySelectorAll('.ytp-menuitem')) || []);
+        const candidates = ['english', '英语', 'english (auto-generated)', '英语（自动生成）'];
+        for (const want of candidates) {
+          if (await selectSubtitlesMenuItem([want], 2500)) {
+            await sleep(800);
+            const on = document.querySelectorAll('.ytp-caption-segment').length > 0;
+            console.log('[SubtitleMate] ui: original result segments=' + on);
+            if (on) return true;
+          }
+        }
+        return false;
+      }
+
       // translate mode: settings -> subtitles -> auto-translate -> target language
       if (await selectSubtitlesMenuItem(['auto-translate', 'auto translate', '自动翻译', '翻译'], 3000)) {
         // Re-open menu context is preserved; re-fetch panel and check again.
@@ -507,6 +525,9 @@
       const text = normalizeMenuText(labelEl.textContent);
       if (mode === 'auto-generated') {
         if (/english/.test(text) && /auto|asr/.test(text)) return true;
+      } else if (mode === 'original') {
+        // Any selected non-translated language entry satisfies original mode.
+        if (text && !/>>|→|translat|自动翻译|翻译为/.test(text) && !/^off$|^关闭$/.test(text)) return true;
       } else if (want) {
         const exact = (want.exact || []).map(normalizeMenuText);
         const fallback = (want.fallback || []).map(normalizeMenuText);
@@ -543,6 +564,9 @@
     if (mode === 'auto-generated') {
       return /english|英语/.test(t) && /auto|自动|asr/.test(t) && !/>>|→|translat|翻译/.test(t);
     }
+    if (mode === 'original') {
+      return !/>>|→|translat|翻译/.test(t);
+    }
     const want = targetLanguageLabels(targetLang);
     const exact = (want.exact || []).map(normalizeMenuText);
     const fallback = (want.fallback || []).map(normalizeMenuText);
@@ -575,6 +599,9 @@
     if (!st || !st.hasTrack) return false;
     if (mode === 'auto-generated') {
       return /english/.test(st.baseLang) && !st.isTranslation;
+    }
+    if (mode === 'original') {
+      return !st.isTranslation;
     }
     return st.translationLanguage === (targetLang || 'zh-CN').toLowerCase();
   }
@@ -711,7 +738,8 @@
         const domSegments = document.querySelectorAll('.ytp-caption-segment').length;
         const apiOk =
           (mode === 'translate' && curTl === (targetLang || 'zh-CN').toLowerCase()) ||
-          (mode === 'auto-generated' && /en/.test(curBase) && !curTl);
+          (mode === 'auto-generated' && /en/.test(curBase) && !curTl) ||
+          (mode === 'original' && !curTl);
         return { apiOk, domSegments, curBase, curTl };
       } catch (e) {
         console.log('[SubtitleMate] api: verify threw -> ' + (e && e.message));
@@ -746,6 +774,9 @@
   async function handleApply(payload) {
     const mode = payload.mode;
     const targetLang = payload.targetLang || 'zh-CN';
+    const modeInfo = mode === 'translate'
+      ? 'translated to ' + targetLang
+      : (mode === 'auto-generated' ? 'English (auto-generated)' : 'original captions');
 
     // 0) Early stop: if YouTube already satisfies the target, do nothing.
     if (isAlreadySatisfiedDom(mode, targetLang)) {
@@ -758,7 +789,7 @@
     if (apiOk) {
       return {
         ok: true,
-        info: (mode === 'auto-generated' ? 'English (auto-generated)' : 'translated to ' + targetLang) + ' via API',
+        info: modeInfo + ' via API',
       };
     }
 
@@ -768,7 +799,7 @@
     if (uiOk) {
       return {
         ok: true,
-        info: (mode === 'auto-generated' ? 'English (auto-generated)' : 'translated to ' + targetLang) + ' via UI',
+        info: modeInfo + ' via UI',
       };
     }
 

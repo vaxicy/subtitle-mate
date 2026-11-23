@@ -55,6 +55,8 @@
     $('lblTargetLangHint').textContent = i18n.targetLangHint;
     $('lblAutoYt').textContent = i18n.autoOnYt;
     $('lblAutoYtHint').textContent = i18n.autoOnYtHint;
+    $('lblAutoTranslate').textContent = i18n.autoTranslate;
+    $('lblAutoTranslateHint').textContent = i18n.autoTranslateHint;
     $('lblAutoSpeed').textContent = i18n.autoPlaybackSpeed;
     $('lblSpeed').textContent = i18n.playbackSpeed;
     $('lblRetryCount').textContent = i18n.retryCount;
@@ -67,12 +69,16 @@
 
     fillModeOptions($('captionMode'), settings[STORAGE_KEYS.CAPTION_MODE]);
     fillLangOptions($('targetLang'), settings[STORAGE_KEYS.TARGET_LANG]);
-    // Target language only applies in auto-translate mode.
+    // Target language applies only when both auto-translate and translate mode
+    // are on — turning auto-translate off means "original captions only".
     const translateMode = settings[STORAGE_KEYS.CAPTION_MODE] === CAPTION_MODES.TRANSLATE;
-    $('targetLang').disabled = !translateMode;
-    $('targetLang').classList.toggle('disabled', !translateMode);
-    $('lblTargetLangHint').style.visibility = translateMode ? 'visible' : 'hidden';
+    const autoTranslate = settings[STORAGE_KEYS.AUTO_TRANSLATE] !== false;
+    const langEnabled = translateMode && autoTranslate;
+    $('targetLang').disabled = !langEnabled;
+    $('targetLang').classList.toggle('disabled', !langEnabled);
+    $('lblTargetLangHint').style.visibility = langEnabled ? 'visible' : 'hidden';
     $('chkAutoYt').checked = settings[STORAGE_KEYS.AUTO_ON_YT];
+    $('chkAutoTranslate').checked = autoTranslate;
 
     // Playback speed controls.
     $('chkAutoSpeed').checked = settings[STORAGE_KEYS.AUTO_PLAYBACK_SPEED];
@@ -111,6 +117,11 @@
 
     $('chkAutoYt').addEventListener('change', (e) =>
       save({ [STORAGE_KEYS.AUTO_ON_YT]: e.target.checked }));
+
+    $('chkAutoTranslate').addEventListener('change', (e) => {
+      save({ [STORAGE_KEYS.AUTO_TRANSLATE]: e.target.checked });
+      applyUI();
+    });
 
     $('chkAutoSpeed').addEventListener('change', (e) => {
       save({ [STORAGE_KEYS.AUTO_PLAYBACK_SPEED]: e.target.checked });
